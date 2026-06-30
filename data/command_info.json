@@ -39,7 +39,7 @@
         "title": "Lyrics Search",
         "description": "Search songs by lyrics",
         "usage": "lyricssearch `<lyrics>`",
-        "example": "lyricssearch life is a race and im in last place"
+        "example": "lyricssearch woke up in the morning like im not supposed to be here"
     },
     "leak": {
         "title": "Leak Search",
@@ -118,5 +118,11 @@
         "description": "List all disabled commands for the current server",
         "usage": "disabledcmds",
         "example": "disabledcmds"
+    },
+    "lyrics": {
+        "title": "Lyrics Viewer",
+        "description": "View lyrics for a song",
+        "usage": "lyrics `<song>`",
+        "example": "lyrics Be Here"
     }
 }

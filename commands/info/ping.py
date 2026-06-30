@@ -1,14 +1,13 @@
-import random
 import time
+import random
 
-import aiohttp
 import discord
 from discord.ext import bridge, commands
-from discord.ui import Container, Section, TextDisplay, Thumbnail
+from discord.ui import Section, TextDisplay, Thumbnail
 
 from config import colors, endpoints
 from utils.functions import httpcall, getSession
-from utils.components import loading, createView
+from utils.components import createContainer, createView, loading
 
 LOADING_EMOJIS = [
     "<a:takeoff:1517041443175268477>",
@@ -19,40 +18,20 @@ LOADING_EMOJIS = [
     "<a:hovering:1517046296416878663>",
 ]
 
-# markers that suggest the response body is an error page rather than real api data.
-# add or remove strings here; nothing cloudflare-specific is hardcoded.
-ERROR_MARKERS = [
-    "error",
-    "unavailable",
-    "bad gateway",
-    "service unavailable",
-    "gateway time",
-    "ray id",
-    "checking your browser",
-    "please wait",
-    "origin unreachable",
-    "server error",
-]
-
 HOSTS = {
     "main": (endpoints.jwa, ["/"]),
     "api": (endpoints.jwa, ["/juicewrld/"]),
     "media (master)": (endpoints.media, ["/status/"]),
-    "test": ("https://brick-hill.com", ["/"]),
 }
 
 
-async def ping_host(session, base_url, paths):
+async def pingHost(session, baseUrl, paths):
     start = time.perf_counter()
     for path in paths:
         try:
-            async with session.get(f"{base_url}{path}", timeout=aiohttp.ClientTimeout(total=8)) as resp:
-                if resp.status >= 400:
-                    continue
-                text = (await resp.text()).lower()
-                if any(marker in text for marker in ERROR_MARKERS):
-                    continue
-                return True, (time.perf_counter() - start) * 1000
+            async with session.get(f"{baseUrl}{path}", timeout=8) as resp:
+                if resp.status < 400:
+                    return True, (time.perf_counter() - start) * 1000
         except Exception:
             continue
     return False, (time.perf_counter() - start) * 1000
@@ -64,7 +43,7 @@ class PingCog(commands.Cog):
         self.region = None
         self.country = None
 
-    async def ensure_location(self):
+    async def ensureLocation(self):
         if self.country and self.country.lower() != "unknown":
             return
         ip = await httpcall("https://api.ipify.org", expect_json=False)
@@ -76,21 +55,19 @@ class PingCog(commands.Cog):
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def ping(self, ctx):
         msg = await ctx.reply(random.choice(LOADING_EMOJIS))
-        await self.ensure_location()
         session = await getSession()
-        status_lines = []
-        for name, (base_url, paths) in HOSTS.items():
-            online, ping_ms = await ping_host(session, base_url, paths)
+        statusLines = []
+        for name, (baseUrl, paths) in HOSTS.items():
+            online, pingMs = await pingHost(session, baseUrl, paths)
             if online:
-                status_lines.append(f"<:status_online:1443125660552921142> {name.title()}")
-                status_lines.append(f"-# {ping_ms:.2f}ms")
+                statusLines.append(f"<:status_online:1443125660552921142> {name.title()}")
+                statusLines.append(f"-# {pingMs:.2f}ms")
             else:
-                status_lines.append(f"<:status_offline:1443125840501014572> {name.title()}")
-                status_lines.append("-# down")
-        cont = Container()
-        header_lines = ["### juicewrldapi Status", *status_lines]
-        accessory = Thumbnail("https://i.imgur.gg/AYK6hmG-hero-removebg-preview.png")
-        cont.add_item(Section(TextDisplay("\n".join(header_lines)), accessory=accessory))
+                statusLines.append(f"<:status_offline:1443125840501014572> {name.title()}")
+                statusLines.append("-# down")
+
+        cont = createContainer(title="juicewrldapi Status", description=statusLines)
+        cont.add_item(Section(TextDisplay(""), accessory=Thumbnail("https://i.imgur.gg/AYK6hmG-hero-removebg-preview.png")))
         cont.add_separator(divider=True)
         cont.add_text(f"-# Use `{ctx.prefix}jwa` for classic layout\n-# Use `{ctx.prefix}wrld` for bot ping")
         await msg.edit(content=None, embed=None, view=createView(cont))
@@ -99,18 +76,18 @@ class PingCog(commands.Cog):
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def jwa(self, ctx):
         msg = await ctx.reply(embed=await loading("PING"))
-        await self.ensure_location()
+        await self.ensureLocation()
         session = await getSession()
         embed = discord.Embed(title="juicewrldapi Status", url=endpoints.jwa, color=colors.main)
-        for name, (base_url, paths) in HOSTS.items():
-            online, ping_ms = await ping_host(session, base_url, paths)
+        for name, (baseUrl, paths) in HOSTS.items():
+            online, pingMs = await pingHost(session, baseUrl, paths)
             if online:
-                embed.add_field(name=f"<:status_online:1443125660552921142> {name.title()}", value=f"Ping: {ping_ms:.2f} ms", inline=True)
+                embed.add_field(name=f"<:status_online:1443125660552921142> {name.title()}", value=f"Ping: {pingMs:.2f} ms", inline=True)
             else:
                 embed.add_field(name=f"<:status_offline:1443125840501014572> {name.title()}", value="Couldn't reach host :(", inline=True)
         embed.set_footer(text=f"{self.bot.user.name} | Pinged from {self.region}, {self.country}", icon_url=self.bot.user.avatar.url)
         await msg.edit(embed=embed)
-
+        
     @bridge.bridge_command(usage="apistats", description="Shows basic juicewrldapi statistics")
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def apistats(self, ctx):
