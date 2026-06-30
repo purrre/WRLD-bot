@@ -1,0 +1,122 @@
+{
+    "recorded": {
+        "title": "Recording Dates",
+        "description": "View songs by their recording date",
+        "usage": "recorded `<date>`",
+        "example": "recorded nov 16 2018"
+    },
+    "previewed": {
+        "title": "Preview Dates",
+        "description": "View songs by their first preview date",
+        "usage": "previewed `<date>`",
+        "example": "previewed nov 16 2018"
+    },
+    "producer": {
+        "title": "Producer Search",
+        "description": "Find songs by producer name",
+        "usage": "producer `<name>`",
+        "example": "producer Nick Mira"
+    },
+    "location": {
+        "title": "Location Search",
+        "description": "Find songs by recording location",
+        "usage": "location `<name>`",
+        "example": "location Rented Home Recording Studio, West Hollywood, Los Angeles, CA."
+    },
+    "engineer": {
+        "title": "Engineer Search",
+        "description": "Find songs by engineer name",
+        "usage": "engineer `<name>`",
+        "example": "engineer Max Lord"
+    },
+    "groupbuy": {
+        "title": "Groupbuy Search",
+        "description": "Find groupbuys by song name or year",
+        "usage": "groupbuy `<name>`\ngroupbuy `<year>`",
+        "example": "groupbuy Be Here\ngroupbuy 2022"
+    },
+    "lyricssearch": {
+        "title": "Lyrics Search",
+        "description": "Search songs by lyrics",
+        "usage": "lyricssearch `<lyrics>`",
+        "example": "lyricssearch life is a race and im in last place"
+    },
+    "leak": {
+        "title": "Leak Search",
+        "description": "Search for a leak and get the mp3",
+        "usage": "leak `<song>`",
+        "example": "leak Be Here"
+    },
+    "snippets": {
+        "title": "Snippet Search",
+        "description": "Search for a song and get the snippets for it",
+        "usage": "snippet `<song>`",
+        "example": "snippet Be Here"
+    },
+    "session": {
+        "title": "Session Search",
+        "description": "Search for a song and get the recording session for it",
+        "usage": "session `<song>`",
+        "example": "session northside"
+    },
+    "ogfile": {
+        "title": "Original File Search",
+        "description": "Search for a song and get the original file for it",
+        "usage": "ogfile `<song>`",
+        "example": "ogfile Lost My Mind"
+    },
+    "info": {
+        "title": "Info",
+        "description": "Get information about an official song/session",
+        "usage": "info `<item>`",
+        "example": "info Be Here"
+    },
+    "grail": {
+        "title": "Grail Management",
+        "description": "Manage grail lists and tracks",
+        "usage": "grail **list** `<@user>`\ngrail **add** `<song>`\ngrail **remove** `<song>`\ngrail **clear**",
+        "example": "grail list @purree\ngrail add Be Here\ngrail remove More Love\ngrail clear"
+    },
+    "sessionzip": {
+        "title": "Session Zip",
+        "description": "Get the zip/ProTools for a recording session",
+        "usage": "sessionzip `<session>`",
+        "example": "sessionzip Be Here"
+    },
+    "sessionedit": {
+        "title": "Session Edit",
+        "description": "Get a listenable edit of a recording session",
+        "usage": "sessionedit `<session>`",
+        "example": "sessionedit Be Here"
+    },
+    "cover": {
+        "title": "Cover Search",
+        "description": "Search for custom song/album covers",
+        "usage": "cover `<item>`",
+        "example": "cover Be Here\ncover Legends Never Die"
+    },
+    "prefix": {
+        "title": "Prefix Configuration",
+        "description": "Configures the bots custom prefix for the current guild. Requires **Manage Guild** permission",
+        "usage": "prefix set `<prefix>`\nprefix\nprefix clear",
+        "example": "prefix set !\nprefix\nprefix clear"
+    },
+    "disablecmd": {
+        "title": "Disable Command",
+        "description": "Disable a command for the current server. Requires **Manage Guild** permission",
+        "usage": "disablecmd `<command>`",
+        "example": "disablecmd session"
+    },
+    "enablecmd": {
+        "title": "Enable Command",
+        "description": "Enable a command for the current server. Requires **Manage Guild** permission",
+        "usage": "enablecmd `<command>`",
+        "example": "enablecmd session"
+    },
+    "disabledcmds": {
+        "title": "Disabled Commands",
+        "description": "List all disabled commands for the current server",
+        "usage": "disabledcmds",
+        "example": "disabledcmds"
+    }
+}

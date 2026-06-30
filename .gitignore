@@ -1,0 +1,13 @@
+.env
+*.pyc
+__pycache__/
+.venv/
+venv/
+data/*.sqlite
+reboot.json
+start.bat
+start.sh
+commands/admin/dbadmin.py
+commands/info/wrldai_context.py
+commands/info/wrldai.py
+commands/songs/tagger.py
