@@ -1,3 +1,4 @@
+import re
 import urllib.parse
 
 import discord
@@ -12,8 +13,12 @@ from utils.songs import image_url, match_song_for_cover, song_title, INVALID_VAL
 
 COVER_PAGE_SIZE = 7
 
+def clean_cover_query(query):
+    return re.sub(r"[^a-zA-Z0-9\s]", "", str(query)).strip()
+
 async def search_covers(query):
-    url = f"{endpoints.covers}?search={urllib.parse.quote(str(query).strip())}"
+    cleaned = clean_cover_query(query)
+    url = f"{endpoints.covers}?search={urllib.parse.quote(cleaned)}"
     data = await fetchJson(url, timeout=10)
     images = data.get("images") if isinstance(data, dict) else []
     if not isinstance(images, list):
@@ -41,10 +46,11 @@ class CoversCog(commands.Cog):
         if not await checkApiHealth(endpoints.covers_health):
             return await ctx.respond(f"{emojis.fail} {apiHost(endpoints.covers)} is down. Please try again later.\n-# If this persists, contact `@purree`", ephemeral=True)
         async with ctx.typing():
-            image_urls = await search_covers(query)
+            cleaned = clean_cover_query(query)
+            image_urls = await search_covers(cleaned)
             if not image_urls:
                 return await ctx.respond(f"{emojis.fail} No covers found for **{query}**.", ephemeral=True)
-            matched_song = match_song_for_cover(query)
+            matched_song = match_song_for_cover(cleaned)
 
             def render(page_urls, page, total_pages, user_id, extra_context):
                 song = extra_context.get("matched_song")

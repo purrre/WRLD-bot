@@ -12,7 +12,7 @@ from discord.ext import commands
 
 from config import settings, emojis
 from utils.cache import cache, cache_manager
-from utils.functions import consoleLog, findClosestMatch, adminCheck, isBlacklistedUser
+from utils.functions import consoleLog, findClosestMatch, adminCheck, isBlacklistedUser, setRandomLyricStatus
 
 
 class AdminCog(commands.Cog):
@@ -78,6 +78,15 @@ class AdminCog(commands.Cog):
                 return await ctx.respond(f"{emojis.fail} Invalid status type")
             await self.bot.change_presence(activity=discord.Activity(type=activity_type, name=status_text))
         await ctx.respond(f"{emojis.success} Updated status")
+
+    @adminCheck()
+    @commands.command(name="refreshstatus", aliases=["rs"])
+    async def refreshstatus(self, ctx):
+        lyric = await setRandomLyricStatus(self.bot)
+        if lyric:
+            await ctx.respond(f'{emojis.success} Status refreshed:\n> "{lyric["text"]}"\n-# *{lyric["song"]}*')
+        else:
+            await ctx.respond(f"{emojis.fail} No lyrics available to set status.")
 
     @adminCheck()
     @commands.command(name="eval")

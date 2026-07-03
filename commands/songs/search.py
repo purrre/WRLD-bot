@@ -50,6 +50,8 @@ class SearchCog(commands.Cog):
         await interaction.response.send_message(view=createView(gb_cont, view_class=PersistentSongView), ephemeral=True)
 
     async def update_og_buttons(self, message_or_interaction, song, user_id, all_results=None):
+        if message_or_interaction is None:
+            return
         try:
             og_buttons = await fetch_og_buttons(song)
             if not og_buttons:
@@ -57,8 +59,10 @@ class SearchCog(commands.Cog):
             new_view = self.build_song_view(song, user_id, all_results, og_buttons=og_buttons)
             if isinstance(message_or_interaction, discord.Interaction):
                 await message_or_interaction.edit_original_response(view=new_view)
-            elif message_or_interaction is not None:
+            else:
                 await message_or_interaction.edit(view=new_view)
+        except discord.NotFound:
+            pass
         except Exception as e:
             consoleLog("OG", f"error updating og buttons: {e}", type="error")
 
@@ -77,7 +81,8 @@ class SearchCog(commands.Cog):
         return on_select
 
     def build_song_view(self, song, user_id, all_results=None, og_buttons=None):
-        view = createView(view_class=PersistentSongView)
+        has_mp3 = bool(song.get("path"))
+        view = createView(view_class=PersistentSongView, timeout=None if has_mp3 else 1800)
         main_cont = createContainer()
         main_cont.add_item(build_song_container(song))
         notes_btn = build_notes_button(song)
@@ -123,7 +128,7 @@ class SearchCog(commands.Cog):
             view.add_item(ActionRow(dropdown))
         path = song.get("path")
         if path:
-            mp3_button = Button(label="MP3", emoji="💿", style=ButtonStyle.gray)
+            mp3_button = Button(label="MP3", emoji="💿", style=ButtonStyle.gray, custom_id=f"mp3_{song.get('public_id')}")
 
             async def mp3_callback(interaction):
                 await interaction.response.defer(ephemeral=True, invisible=False)
@@ -210,19 +215,26 @@ class SearchCog(commands.Cog):
             if not songs:
                 consoleLog("SEARCH", "no content in songs cache", type="error")
                 return await ctx.respond(f"{emojis.fail} Failed.")
-            def cat(s):
-                return re.sub(r"[^a-z0-9]+", "_", str(s.get("category", "")).strip().lower()).strip("_")
-            filtered = [s for s in songs if not (
-                ("-ns" in flag_tokens and cat(s).startswith("recording_session")) or
-                ("-nu" in flag_tokens and cat(s) == "unsurfaced") or
-                ("-nr" in flag_tokens and cat(s) == "released")
-            )]
-            if not filtered:
-                return await ctx.respond(f"{emojis.fail} No songs match those filters. Try removing `-ns`, `-nu`, or `-nr`.", ephemeral=True)
+            if flag_tokens:
+                def matches_flags(s):
+                    cat = re.sub(r"[^a-z0-9]+", "_", str(s.get("category", "")).strip().lower()).strip("_")
+                    if "-ns" in flag_tokens and cat.startswith("recording_session"):
+                        return False
+                    if "-nu" in flag_tokens and cat == "unsurfaced":
+                        return False
+                    if "-nr" in flag_tokens and cat == "released":
+                        return False
+                    return True
+                filtered = [s for s in songs if matches_flags(s)]
+                if not filtered:
+                    return await ctx.respond(f"{emojis.fail} No songs match those filters. Try removing `-ns`, `-nu`, or `-nr`.", ephemeral=True)
+                random_song = random.choice(filtered)
+            else:
+                random_song = random.choice(songs)
             await db.incrementStat("random_songs_found")
-            random_song = random.choice(filtered)
             msg = await ctx.respond(view=self.build_song_view(random_song, ctx.author.id))
-            self.bot.loop.create_task(self.update_og_buttons(msg, random_song, ctx.author.id, [random_song]))
+            sent_message = await self.get_response_msg(ctx, msg)
+            self.bot.loop.create_task(self.update_og_buttons(sent_message, random_song, ctx.author.id, [random_song]))
 
 
 def setup(bot):

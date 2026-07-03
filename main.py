@@ -11,6 +11,7 @@ from discord.gateway import DiscordWebSocket
 import config
 from utils.functions import (
     consoleLog, closeSession, mobileIdentify, blacklistCheck, disabledCommandsCheck,
+    setRandomLyricStatus,
 )
 from utils.database import db
 from utils.cache import ensureCache, startPoller, closeRedis
@@ -64,6 +65,7 @@ class WRLD(bridge.Bot):
         await config.emojis.load(self)
         consoleLog("INFO", f"logged in as {self.user} | {len(self.guilds)} guilds")
         await self.handleReboot()
+        await setRandomLyricStatus(self)
 
     async def handleReboot(self):
         if not os.path.exists("reboot.json"):

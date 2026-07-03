@@ -44,7 +44,14 @@ class PersistentSongView(DesignerView):
         self.message = None
 
     async def on_timeout(self):
-        pass
+        if self.message:
+            try:
+                for item in self.children:
+                    if hasattr(item, "disabled"):
+                        item.disabled = True
+                await self.message.edit(view=self)
+            except Exception:
+                pass
 
 
 class DropdownView(DesignerView):
@@ -187,10 +194,10 @@ class PaginatedView:
         prevBtn = Button(label="Previous", style=ButtonStyle.gray, custom_id=f"{self.commandType}_prev_{page}_{self.userId}", disabled=page <= 0)
         nextBtn = Button(label="Next", style=ButtonStyle.gray, custom_id=f"{self.commandType}_next_{page}_{self.userId}", disabled=page >= self.totalPages - 1)
         buttons = [prevBtn, nextBtn]
-        view.add_item(ActionRow(*buttons))
         if self.extraItemsFunc:
             for item in self.extraItemsFunc(self, page):
                 view.add_item(item)
+        view.add_item(ActionRow(*buttons))
         return view, buttons
 
     def attachCallbacks(self, buttons, interactionOrCtx):
@@ -198,7 +205,7 @@ class PaginatedView:
             async def btnCallback(inter, btn=btn):
                 if inter.user.id != self.userId:
                     return await inter.response.send_message(NOT_YOURS, ephemeral=True)
-                parts = btn.custom_id.split("_")
+                parts = btn.custom_id.rsplit("_", 3)
                 direction = parts[1]
                 currentPage = int(parts[2])
                 newPage = currentPage - 1 if direction == "prev" else currentPage + 1

@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     admin_users: str = ""
 
-    database_url: str = "sqlite+aiosqlite:///data/osse.sqlite"
+    database_url: str = "sqlite+aiosqlite:///data/WRLDDB.sqlite"
     redis_url: str = "redis://localhost:6379/0"
 
     gemini_api_key: str = ""

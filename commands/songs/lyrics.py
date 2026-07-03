@@ -1,5 +1,3 @@
-import random
-
 import discord
 from discord.ext import bridge, commands
 from discord import ButtonStyle
@@ -10,6 +8,7 @@ from config import emojis, NOT_YOURS
 from utils.cache import cache
 from utils.database import db
 from utils.components import PersistentSongView, createContainer, createSongDropdown, createView
+from utils.functions import getRandomLyric
 from utils.songs import build_song_container, song_matches
 
 class LyricsCog(commands.Cog):
@@ -137,43 +136,27 @@ class LyricsCog(commands.Cog):
     async def randomlyric(self, ctx):
         await ctx.defer()
 
-        async def generate_response(target, is_edit=False):
-            data = cache.getLyrics()
-            if not data:
-                msg = f"{emojis.fail} No lyrics data available."
-                return await target.edit_original_response(content=msg, view=None) if is_edit else await target.respond(msg, ephemeral=True)
-            candidates = []
-            for entry in data.values():
-                if not isinstance(entry, dict):
-                    continue
-                name = entry.get("name", "Unknown Track")
-                for line in entry.get("lyrics", "").split("\n"):
-                    line = line.strip().replace("\r", "")
-                    if len(line) < 18 or line.startswith(("[", "(")) or line.endswith(("]", ")")):
-                        continue
-                    low = line.lower()
-                    if low.count("ayy") > 1 or low.count("yeah") > 2 or len(set(low.split())) < 3:
-                        continue
-                    candidates.append({"text": line, "song": name})
-            if not candidates:
+        async def send_lyric(target, is_edit=False):
+            lyric = getRandomLyric()
+            if not lyric:
                 msg = f"{emojis.fail} No bars found."
                 return await target.edit_original_response(content=msg, view=None) if is_edit else await target.respond(msg, ephemeral=True)
-            lyric = random.choice(candidates)
             await db.incrementStat("random_lyrics_found")
+
             next_btn = Button(label="Next Lyric", style=ButtonStyle.gray)
 
             async def next_callback(interaction):
                 if interaction.user.id != ctx.author.id:
                     return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
                 await interaction.response.defer()
-                await generate_response(interaction, is_edit=True)
+                await send_lyric(interaction, is_edit=True)
 
             next_btn.callback = next_callback
             cont = createContainer(title=f'"{lyric["text"]}"', description=f"-# Lyric from *{lyric['song']}*", heading="##")
-            view = createView(cont, ActionRow(next_btn))
+            view = createView(cont, ActionRow(next_btn), timeout=300)
             await target.edit_original_response(view=view) if is_edit else await target.respond(view=view)
 
-        await generate_response(ctx)
+        await send_lyric(ctx)
 
     @bridge.bridge_command(aliases=["searchlyrics", "lyricsearch", "sl", "searchlyric", "ls"], description="Search for songs by lyrics")
     @bridge.bridge_option(name="lyrics", description="Lyrics text to search for", required=True)

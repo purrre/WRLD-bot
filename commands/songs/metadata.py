@@ -100,8 +100,8 @@ class MetadataCog(commands.Cog):
                 return await ctx.respond(f"{emojis.fail} Invalid date format.", ephemeral=True)
 
             await createSimplePagination(
-                items=matched, items_per_page=items, user_id=ctx.author.id,
-                command_type=index_key, render_page_func=self.render_page(matched, title), view_class=PersistentSongView,
+                items=matched, itemsPerPage=items, userId=ctx.author.id,
+                commandType=index_key, renderPageFunc=self.render_page(matched, title), viewClass=PersistentSongView,
             ).show(ctx, 0)
 
     @bridge.bridge_command(name="surfaced", aliases=["leaked"], description="View songs by surface/leak date")
@@ -153,8 +153,8 @@ class MetadataCog(commands.Cog):
             title = f"{title_prefix} {actual_name or query}"
 
             await createSimplePagination(
-                items=matched, items_per_page=items, user_id=ctx.author.id,
-                command_type=command_type, render_page_func=self.render_page(matched, title), view_class=PersistentSongView,
+                items=matched, itemsPerPage=items, userId=ctx.author.id,
+                commandType=command_type, renderPageFunc=self.render_page(matched, title), viewClass=PersistentSongView,
             ).show(ctx, 0)
 
     @bridge.bridge_command(name="producer", aliases=["prod"], description="Search songs by producer")
@@ -247,9 +247,9 @@ class MetadataCog(commands.Cog):
             return [ActionRow(era_select)]
 
         return createSimplePagination(
-            items=matched, items_per_page=items, user_id=user_id,
-            command_type="unsurfaced", render_page_func=self.render_page(matched, title), view_class=PersistentSongView,
-            extra_items_func=extra_items,
+            items=matched, itemsPerPage=items, userId=user_id,
+            commandType="unsurfaced", renderPageFunc=self.render_page(matched, title), viewClass=PersistentSongView,
+            extraItemsFunc=extra_items,
         )
 
     @bridge.bridge_command(name="unsurfaced", aliases=["us"], description="View all unsurfaced songs, optionally filtered by era")

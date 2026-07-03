@@ -42,7 +42,7 @@ class GrailCog(commands.Cog):
             )
             return cont, None
 
-        pagination = createSimplePagination(items=grails, items_per_page=15, user_id=ctx.author.id, command_type="grail", render_page_func=render)
+        pagination = createSimplePagination(items=grails, itemsPerPage=15, userId=ctx.author.id, commandType="grail", renderPageFunc=render)
         await pagination.show(ctx, 0)
 
     @grail.command(name="add")

@@ -37,8 +37,8 @@ class ErasCog(commands.Cog):
             return createContainer(title=f"🌌 Eras\n-# Page {page + 1}/{total_pages}", description="\n\n".join(lines)), None
 
         pagination = createSimplePagination(
-            items=eras, items_per_page=8, user_id=ctx.author.id,
-            command_type="eras", render_page_func=render, view_class=PersistentSongView,
+            items=eras, itemsPerPage=8, userId=ctx.author.id,
+            commandType="eras", renderPageFunc=render, viewClass=PersistentSongView,
         )
         await pagination.show(ctx, 0)
 
@@ -54,8 +54,8 @@ class ErasCog(commands.Cog):
             return createContainer(title=f"💿 Albums\n-# Page {page + 1}/{total_pages}", description="\n\n".join(lines)), None
 
         pagination = createSimplePagination(
-            items=albums, items_per_page=5, user_id=ctx.author.id,
-            command_type="albums", render_page_func=render, view_class=PersistentSongView,
+            items=albums, itemsPerPage=5, userId=ctx.author.id,
+            commandType="albums", renderPageFunc=render, viewClass=PersistentSongView,
         )
         await pagination.show(ctx, 0)
 

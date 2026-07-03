@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import re
 import sys
 import urllib.parse
@@ -308,6 +309,43 @@ def findClosestMatch(userInput, listAll=False):
 
 def isAdminUser(userId):
     return str(userId) in config.settings.admin_ids
+
+def getRandomLyric():
+    from utils.cache import cache
+    data = cache.getLyrics()
+    if not data:
+        return None
+    valid_entries = [e for e in data.values() if isinstance(e, dict) and e.get("lyrics")]
+    if not valid_entries:
+        return None
+    for _ in range(50):
+        entry = random.choice(valid_entries)
+        name = entry.get("name", "Unknown Track")
+        lines = [
+            line.strip().replace("\r", "")
+            for line in entry.get("lyrics", "").split("\n")
+        ]
+        good = [
+            line for line in lines
+            if len(line) >= 18
+            and not line.startswith(("[", "("))
+            and not line.endswith(("]", ")"))
+            and line.lower().count("ayy") <= 1
+            and line.lower().count("yeah") <= 2
+            and len(set(line.lower().split())) >= 3
+        ]
+        if good:
+            return {"text": random.choice(good), "song": name}
+    return None
+
+async def setRandomLyricStatus(bot):
+    lyric = getRandomLyric()
+    if lyric:
+        await bot.change_presence(activity=discord.CustomActivity(name="Custom Status", state=lyric["text"]))
+        consoleLog("STATUS", f'set status: "{lyric["text"]}" — {lyric["song"]}')
+        return lyric
+    consoleLog("STATUS", "no lyrics available for status", type="warning")
+    return None
 
 def isBlacklistedUser(userId):
     from utils.database import db

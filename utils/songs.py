@@ -391,9 +391,6 @@ async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=N
     elif mode == "snippets":
         main_cont.add_separator(divider=True)
         btn_row = [SnipButton(song)]
-        path = song.get("path")
-        if path:
-            btn_row.append(Button(label="\u200b", style=ButtonStyle.link, url=downloadUrl(str(path))))
         main_cont.add_item(ActionRow(*btn_row))
     elif mode == "session":
         session_file = await find_session_file(song)
@@ -405,7 +402,7 @@ async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=N
         if og_buttons:
             main_cont.add_separator(divider=True, spacing=SeparatorSpacingSize.small)
             main_cont.add_item(ActionRow(*og_buttons))
-    view = createView(main_cont, view_class=PersistentSongView)
+    view = createView(main_cont, view_class=PersistentSongView, timeout=None if mode == "leak" else 1800)
     if matches and len(matches) > 1:
         async def on_select(interaction, song_id):
             if interaction.user.id != user_id:
@@ -556,7 +553,7 @@ async def send_file(interaction, url, filename, kind, session=None):
 
 class SongButton(discord.ui.Button):
     def __init__(self, song):
-        super().__init__(emoji="💿", label="MP3", style=discord.ButtonStyle.gray)
+        super().__init__(emoji="💿", label="MP3", style=discord.ButtonStyle.gray, custom_id=f"mp3_{song.get('public_id')}")
         self.song = song
         self.stream_urls = []
         self.found_ext = None
