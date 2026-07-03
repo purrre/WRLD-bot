@@ -80,7 +80,7 @@ class AdminCog(commands.Cog):
         await ctx.respond(f"{emojis.success} Updated status")
 
     @adminCheck()
-    @commands.command(name="refreshstatus", aliases=["rs"])
+    @commands.command(name="refreshstatus", aliases=["rstatus"])
     async def refreshstatus(self, ctx):
         lyric = await setRandomLyricStatus(self.bot)
         if lyric:
