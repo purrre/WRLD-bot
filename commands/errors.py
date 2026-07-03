@@ -53,12 +53,7 @@ class ErrorsCog(commands.Cog):
             return await msg.delete(delay=5)
         if isinstance(error, commands.CommandInvokeError):
             await self.logError(error.original, ctx=ctx)
-            err = createContainer()
-            err.add_item(TextDisplay("## <:juiceL:1407602749851435059> WRLD collided"))
-            err.add_item(TextDisplay("WRLD has collided with another world. Please report this to `@purree`"))
-            err.add_separator(divider=True)
-            err.add_text(f"**Traceback:**\n```py\n{str(error.original)[:500]}```")
-            return await ctx.reply(view=createView(err))
+            return await ctx.reply(f"{emojis.fail} Something went wrong :( The error has been reported.", delete_after=10)
         if isinstance(error, commands.NoPrivateMessage):
             return await ctx.respond(f"{emojis.fail} This command only works in servers.", ephemeral=True)
         if isinstance(error, commands.MissingPermissions):
@@ -67,10 +62,7 @@ class ErrorsCog(commands.Cog):
         if isinstance(error, commands.CheckFailure):
             return consoleLog("BLACKLIST", f"{ctx.author.name} ({ctx.author.id}) tried to run a command")
         await self.logError(error, ctx=ctx)
-        err = createContainer()
-        err.add_item(TextDisplay("## Unexpected Error"))
-        err.add_item(TextDisplay("wrld failed to handle this specific exception."))
-        await ctx.reply(view=createView(err))
+        await ctx.reply(f"{emojis.fail} Something went wrong. The error has been reported.", delete_after=10)
 
     async def sendUsage(self, ctx):
         cmdName = ctx.command.name
