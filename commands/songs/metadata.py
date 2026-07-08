@@ -137,17 +137,35 @@ class MetadataCog(commands.Cog):
             q = query.lower()
             matched, actual_name = [], None
             for song in songs:
-                for part in str(song.get(field, "")).split(","):
-                    part = part.strip()
-                    if q in part.lower():
-                        matched.append(song)
-                        if not actual_name:
-                            for person in part.split("&"):
-                                person = person.strip()
-                                if q in person.lower():
-                                    actual_name = person
-                                    break
-                        break
+                field_val = str(song.get(field, "") or "")
+                field_lower = field_val.lower()
+                hit = False
+                if q in field_lower:
+                    hit = True
+                    if not actual_name:
+                        for line in field_val.split("\n"):
+                            line = line.strip()
+                            if q in line.lower():
+                                for part in line.split(","):
+                                    part = part.strip()
+                                    for person in part.split("&"):
+                                        person = person.strip()
+                                        if person and person.lower() in q:
+                                            actual_name = person
+                                            break
+                                    if actual_name:
+                                        break
+                                if not actual_name:
+                                    actual_name = query
+                                break
+                if not hit:
+                    for part in field_val.split(","):
+                        part = part.strip()
+                        if q in part.lower():
+                            hit = True
+                            break
+                if hit:
+                    matched.append(song)
             if not matched:
                 return await ctx.respond(f"{emojis.fail} {not_found}", ephemeral=True)
             title = f"{title_prefix} {actual_name or query}"

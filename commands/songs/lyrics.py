@@ -86,7 +86,7 @@ class LyricsCog(commands.Cog):
         cont.add_item(build_song_container(song, mode="info"))
         cont.add_separator(divider=True)
         cont.add_item(ActionRow(self.lyrics_button(song)))
-        view = createView(cont, view_class=PersistentSongView)
+        view = createView(cont, viewClass=PersistentSongView)
         if matches and len(matches) > 1:
             async def on_select(interaction, song_id):
                 await interaction.response.defer()
@@ -119,7 +119,7 @@ class LyricsCog(commands.Cog):
                 f"-# The database currently contains **{count}** songs with lyrics."
             ),
         )
-        view = createView(cont, view_class=PersistentSongView)
+        view = createView(cont, viewClass=PersistentSongView)
 
         async def on_select(interaction, song_id):
             if interaction.user.id != ctx.author.id:
@@ -192,11 +192,11 @@ class LyricsCog(commands.Cog):
             if len(matches) == 1:
                 song = matches[0]
                 cont = createContainer(title="Lyrics Search", description=f"Found **{self.name(song)}** with matching lyrics.\n\n-# The database currently contains **{count}** songs with lyrics.")
-                view = createView(cont, view_class=PersistentSongView)
+                view = createView(cont, viewClass=PersistentSongView)
                 view.add_item(ActionRow(self.lyrics_button(song)))
                 return await ctx.respond(view=view)
             cont = createContainer(title="Lyrics Search", description=f"Found **{len(matches)}** songs with matching lyrics.\n\n-# The database currently contains **{count}** songs with lyrics.")
-            view = createView(cont, view_class=PersistentSongView)
+            view = createView(cont, viewClass=PersistentSongView)
 
             async def on_select(interaction, song_id):
                 if interaction.user.id != ctx.author.id:
@@ -205,7 +205,7 @@ class LyricsCog(commands.Cog):
                 if selected:
                     await self.display_lyrics(interaction, selected)
 
-            view.add_item(ActionRow(createSongDropdown(matches, ctx.author.id, placeholder="Choose a song to view lyrics...", callback_func=on_select)))
+            view.add_item(ActionRow(createSongDropdown(matches, ctx.author.id, placeholder="Choose a song to view lyrics...", callbackFunc=on_select)))
             await ctx.respond(view=view)
 
 

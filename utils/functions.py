@@ -58,6 +58,9 @@ def consoleLog(origin, message, type="info"):
 
 jsonCache = {}
 
+fuzzyIndex = None
+fuzzyIndexHash = None
+
 
 def loadJsonFile(filePath, cacheKey=None, default=None, logErrors=True):
     key = cacheKey or filePath
@@ -263,21 +266,26 @@ def findClosestMatch(userInput, listAll=False):
     strictMatches = [canonical for _, canonical, _ in sortedMatches]
     fuzzyMatches = []
     if not strictMatches:
-        indexed = []
-        for entry in songEntries:
-            for alias in entry.get("aliases", []):
-                indexed.append({
-                    "normalized": normalizeMatchingText(alias),
-                    "canonical": entry["canonical"],
-                    "norm_canonical": entry["normalized_canonical"],
-                })
-        normalizedStrings = [item["normalized"] for item in indexed]
+        global fuzzyIndex, fuzzyIndexHash
+        titlesHash = cache.getMeta("titles").get("songs_hash")
+        if not fuzzyIndex or fuzzyIndexHash != titlesHash:
+            indexed = []
+            for entry in songEntries:
+                for alias in entry.get("aliases", []):
+                    indexed.append({
+                        "normalized": normalizeMatchingText(alias),
+                        "canonical": entry["canonical"],
+                        "norm_canonical": entry["normalized_canonical"],
+                    })
+            fuzzyIndex = indexed
+            fuzzyIndexHash = titlesHash
+        normalizedStrings = [item["normalized"] for item in fuzzyIndex]
         results = rf_process.extract(queryNormalized, normalizedStrings, scorer=fuzz.WRatio, score_cutoff=75, limit=25)
         seen = set()
         for _, _, idx in results:
-            normCanonical = indexed[idx]["norm_canonical"]
+            normCanonical = fuzzyIndex[idx]["norm_canonical"]
             if normCanonical not in seen:
-                fuzzyMatches.append(indexed[idx]["canonical"])
+                fuzzyMatches.append(fuzzyIndex[idx]["canonical"])
                 seen.add(normCanonical)
     matchedCanonicals = strictMatches or fuzzyMatches
     if not matchedCanonicals:
@@ -351,9 +359,13 @@ def isBlacklistedUser(userId):
     from utils.database import db
     return db.getBanReason(userId) is not None
 
+backgroundTasks = set()
+
 def fireAndForget(coro):
     try:
-        asyncio.create_task(coro)
+        task = asyncio.create_task(coro)
+        backgroundTasks.add(task)
+        task.add_done_callback(backgroundTasks.discard)
     except RuntimeError:
         pass
 

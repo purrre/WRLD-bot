@@ -8,7 +8,7 @@ from discord.ui import Button, ActionRow
 
 from commands.songs.groupbuy import GroupbuysCog
 from config import NOT_YOURS, emojis
-from utils.functions import downloadUrl, findClosestMatch, consoleLog
+from utils.functions import downloadUrl, findClosestMatch, consoleLog, fireAndForget
 from utils.database import db
 from utils.cache import cache
 from utils.components import PersistentSongView, createContainer, createSongDropdown, createView
@@ -47,7 +47,7 @@ class SearchCog(commands.Cog):
         gb_cont = await GroupbuysCog.create_groupbuy_container(song_data=song)
         if not gb_cont:
             return await interaction.response.send_message(f"{emojis.fail} No groupbuy information available for this song.", ephemeral=True)
-        await interaction.response.send_message(view=createView(gb_cont, view_class=PersistentSongView), ephemeral=True)
+        await interaction.response.send_message(view=createView(gb_cont, viewClass=PersistentSongView), ephemeral=True)
 
     async def update_og_buttons(self, message_or_interaction, song, user_id, all_results=None):
         if message_or_interaction is None:
@@ -68,7 +68,7 @@ class SearchCog(commands.Cog):
 
     async def show_song_and_update_og(self, interaction, song, user_id, all_results):
         await interaction.edit_original_response(view=self.build_song_view(song, user_id, all_results))
-        self.bot.loop.create_task(self.update_og_buttons(interaction, song, user_id, all_results))
+        fireAndForget(self.update_og_buttons(interaction, song, user_id, all_results))
 
     def make_select_callback(self, user_id, all_results):
         async def on_select(interaction, song_id):
@@ -82,7 +82,7 @@ class SearchCog(commands.Cog):
 
     def build_song_view(self, song, user_id, all_results=None, og_buttons=None):
         has_mp3 = bool(song.get("path"))
-        view = createView(view_class=PersistentSongView, timeout=None if has_mp3 else 1800)
+        view = createView(viewClass=PersistentSongView, timeout=None if has_mp3 else 1800)
         main_cont = createContainer()
         main_cont.add_item(build_song_container(song))
         notes_btn = build_notes_button(song)
@@ -124,7 +124,7 @@ class SearchCog(commands.Cog):
             main_cont.add_item(ActionRow(*action_buttons))
         view.add_item(main_cont)
         if all_results and len(all_results) > 1:
-            dropdown = createSongDropdown(all_results, user_id, placeholder="Choose a song...", callback_func=self.make_select_callback(user_id, all_results))
+            dropdown = createSongDropdown(all_results, user_id, placeholder="Choose a song...", callbackFunc=self.make_select_callback(user_id, all_results))
             view.add_item(ActionRow(dropdown))
         path = song.get("path")
         if path:
@@ -146,7 +146,7 @@ class SearchCog(commands.Cog):
             return await ctx.respond(f"{emojis.fail} Song database is empty or unavailable.")
         async with ctx.typing():
             query = song.lower()
-            results = findClosestMatch(song, list_all=True)
+            results = findClosestMatch(song, listAll=True)
             if not results:
                 matches = [
                     s for s in songs_data
@@ -171,7 +171,7 @@ class SearchCog(commands.Cog):
             if single:
                 msg = await ctx.respond(view=self.build_song_view(single, ctx.author.id))
                 sent_message = await self.get_response_msg(ctx, msg)
-                self.bot.loop.create_task(self.update_og_buttons(sent_message, single, ctx.author.id, all_matches))
+                fireAndForget(self.update_og_buttons(sent_message, single, ctx.author.id, all_matches))
                 return
             multi_cont = createContainer(title="Not Found", description=None, color=None)
             best_titles = best_match.get("track_titles") or [best_match.get("name", "Unknown")]
@@ -193,9 +193,9 @@ class SearchCog(commands.Cog):
             multi_cont.add_item(ActionRow(confirm_button))
             multi_cont.add_text("## OR")
             multi_cont.add_text(f"Select from **{len(all_matches)}** matches below")
-            dropdown = createSongDropdown(all_matches, ctx.author.id, placeholder="Choose a song...", callback_func=self.make_select_callback(ctx.author.id, all_matches))
+            dropdown = createSongDropdown(all_matches, ctx.author.id, placeholder="Choose a song...", callbackFunc=self.make_select_callback(ctx.author.id, all_matches))
             multi_cont.add_item(ActionRow(dropdown))
-            view = createView(multi_cont, view_class=PersistentSongView)
+            view = createView(multi_cont, viewClass=PersistentSongView)
             msg = await ctx.respond(view=view)
             view.message = msg
 
@@ -234,7 +234,7 @@ class SearchCog(commands.Cog):
             await db.incrementStat("random_songs_found")
             msg = await ctx.respond(view=self.build_song_view(random_song, ctx.author.id))
             sent_message = await self.get_response_msg(ctx, msg)
-            self.bot.loop.create_task(self.update_og_buttons(sent_message, random_song, ctx.author.id, [random_song]))
+            fireAndForget(self.update_og_buttons(sent_message, random_song, ctx.author.id, [random_song]))
 
 
 def setup(bot):

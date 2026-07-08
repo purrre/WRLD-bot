@@ -58,7 +58,7 @@ class CoversCog(commands.Cog):
                 alt_titles = []
                 if song:
                     main_title, alt_titles = song_title(song)
-                header_lines = [f"### {main_title}"]
+                header_lines = [f"Results for: **{main_title}**"]
                 if alt_titles:
                     header_lines.append(f"-# AKA: {', '.join(alt_titles[:3])}")
                 if song:
@@ -76,12 +76,14 @@ class CoversCog(commands.Cog):
                 cont.add_separator(divider=True)
                 cont.add_text(f"-# Covers {start_idx + 1}-{start_idx + len(page_urls)} of {len(image_urls)} | Page {page + 1}/{total_pages}")
                 cont.add_item(MediaGallery(*[discord.MediaGalleryItem(url) for url in page_urls]))
+                cont.add_separator(divider=True)
+                cont.add_text("-# Want to add missing cover(s)? DM @purree")
                 return cont, PersistentSongView
 
             pagination = createSimplePagination(
                 image_urls, COVER_PAGE_SIZE, ctx.author.id, "cover", render,
-                view_class=PersistentSongView,
-                extra_context={"matched_song": matched_song},
+                viewClass=PersistentSongView,
+                extraContext={"matched_song": matched_song},
             )
             await db.incrementStat("covers_found", amount=len(image_urls))
             await pagination.show(ctx)

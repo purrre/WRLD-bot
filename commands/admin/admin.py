@@ -134,7 +134,7 @@ class AdminCog(commands.Cog):
     @adminCheck()
     @commands.command(name="json")
     async def json(self, ctx, *, song: str):
-        results = findClosestMatch(song, list_all=True)
+        results = findClosestMatch(song, listAll=True)
         if not results:
             return await ctx.respond(f"{emojis.fail} No song found for `{song}`.", ephemeral=True)
         best = results["best"]

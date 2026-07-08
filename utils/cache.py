@@ -19,7 +19,7 @@ redisClient = None
 def getRedis():
     global redisClient
     if redisClient is None:
-        redisClient = aioredis.from_url(config.settings.redis_url, decode_responses=True)
+        redisClient = aioredis.from_url(config.settings.redis_url, decode_responses=True, protocol=2)
     return redisClient
 
 async def closeRedis():

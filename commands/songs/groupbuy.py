@@ -61,6 +61,23 @@ def search_entries(query, entries):
     return [e for _, e in scored]
 
 
+def normalize_song_payload(entry):
+    gb = entry.get("gb") or entry.get("group") or entry.get("groupbuy_info") or {}
+    title = entry.get("title", "Unknown")
+    return {
+        "song_name": title,
+        "project": map_project_name(entry.get("project", "N/A")),
+        "price_display": format_price(gb.get("price")),
+        "start_date": str(gb.get("start_date", "")).strip(),
+        "end_date": str(gb.get("end_date", "")).strip(),
+        "finished": gb.get("finished", False),
+        "ogfile": gb.get("ogfile", False),
+        "blind": entry.get("blind", False),
+        "notes": str(entry.get("additional_info", "")).strip(),
+        "family": [item for item in (entry.get("family") or []) if str(item).strip() and str(item).strip() != title],
+    }
+
+
 async def create_groupbuy_container(entry):
     gb = entry.get("gb") or {}
     title = entry.get("title", "Unknown")
@@ -129,7 +146,7 @@ class GroupbuysCog(commands.Cog):
     def attach_dropdown(self, cont, matches, user_id, callback, year_option=None):
         items = self.build_dropdown(matches, year_option)
         if items:
-            cont.add_item(ActionRow(createSongDropdown(items, user_id, placeholder="Choose a song or year...", callback_func=callback, format_type="gb")))
+            cont.add_item(ActionRow(createSongDropdown(items, user_id, placeholder="Choose a song or year...", callbackFunc=callback, formatType="gb")))
 
     def build_groupbuy_view(self, content, matches, user_id, year_option=None):
         async def on_select(interaction, selected_id):

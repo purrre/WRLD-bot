@@ -72,7 +72,7 @@ def filter_mode_matches(songs, mode):
 
 
 def song_matches(query, mode):
-    results = findClosestMatch(query, list_all=True)
+    results = findClosestMatch(query, listAll=True)
     if results and isinstance(results, dict) and "all" in results:
         matches = results["all"]
     else:
@@ -147,7 +147,7 @@ def match_song_for_cover(query):
             return key_partial[0]
         if partial:
             return partial[0]
-    results = findClosestMatch(normalized_query, list_all=True)
+    results = findClosestMatch(normalized_query, listAll=True)
     if results and isinstance(results, dict):
         return results.get("best")
     fallback = fallback_matches(normalized_query)
@@ -167,7 +167,7 @@ def extract_fnames(file_names_field):
         return []
     if "file name" not in field_str.lower():
         return [field_str]
-    matches = re.findall(r"file name[:\s]*([^\n]+)", field_str, re.IGNORECASE)
+    matches = re.findall(r"file name\s*(?:\(\d+\))?\s*[:\s]*([^\n]+)", field_str, re.IGNORECASE)
     if matches:
         cleaned = []
         for match in matches:
@@ -217,29 +217,86 @@ async def find_session_file(song):
     return None
 
 
-async def fetch_og_buttons(song):
-    category = str(song.get("category", "")).lower()
-    if category not in ("unreleased", "released"):
+def split_ext(name):
+    if "." in name:
+        stem, ext = name.rsplit(".", 1)
+        return stem, f".{ext.lower()}"
+    return name, ""
+
+
+def strip_channel_suffix(stem):
+    match = re.search(r"^(.*?)[ _.\-]([lr])$", stem.strip(), re.IGNORECASE)
+    if match:
+        return match.group(1).strip(), match.group(2).upper()
+    return stem, None
+
+
+def og_file_label(path):
+    ext = file_ext({"path": path})
+    if not ext:
+        return None, None
+    basename = os.path.basename(str(path))
+    name_no_ext, _ = split_ext(basename)
+    _, channel = strip_channel_suffix(name_no_ext)
+    ext_label = ext.lstrip(".").upper()
+    label = f"OG .{ext_label} ({channel})" if channel else f"OG .{ext_label}"
+    type_key = f"{ext}_{channel}" if channel else ext
+    return label, type_key
+
+
+async def fetch_og_files(song):
+    names = extract_fnames(song.get("file_names"))
+    if not names:
         return []
+    found = []
+    seen_paths = set()
+    for name in names:
+        if not name or name.lower() == "n/a":
+            continue
+        if "/" in name and any(name.lower().endswith(e) for e in (".wav", ".flac", ".mp3", ".m4a")):
+            if name.lower() not in seen_paths:
+                seen_paths.add(name.lower())
+                found.append(name)
+            continue
+        query = name.strip()
+        if len(query) < MIN_BROWSE_LENGTH:
+            continue
+        items = await browse_files(query)
+        if not items:
+            continue
+        query_key = query.lower()
+        for item in items:
+            path = str(item.get("path", "")).strip()
+            ext = file_ext(item)
+            if not path or ext not in (".wav", ".flac", ".mp3", ".m4a"):
+                continue
+            item_name = str(item.get("name", ""))
+            name_no_ext, _ = split_ext(item_name)
+            compare_stem, _ = strip_channel_suffix(name_no_ext)
+            if compare_stem.strip().lower() != query_key:
+                continue
+            if path.lower() in seen_paths:
+                continue
+            seen_paths.add(path.lower())
+            found.append(path)
+    return found
+
+
+async def fetch_og_buttons(song):
     buttons = []
     try:
-        file_names = extract_fnames(song.get("file_names"))
-        for fname in file_names:
-            if not fname or fname.lower() == "n/a":
+        paths = await fetch_og_files(song)
+        if not paths:
+            return []
+        seen_types = set()
+        for path in paths:
+            label, type_key = og_file_label(path)
+            if not label or type_key in seen_types:
                 continue
-            base = fname.lower()
-            if base.endswith(".wav"):
-                label = "OG .WAV"
-            elif base.endswith(".flac"):
-                label = "OG .FLAC"
-            elif base.endswith(".mp3"):
-                label = "OG .MP3"
-            else:
-                label = "OG File"
-            url = downloadUrl(fname)
+            seen_types.add(type_key)
+            url = downloadUrl(path)
             if url:
                 buttons.append(Button(label=label, style=ButtonStyle.link, url=url))
-                break
     except Exception as e:
         consoleLog("OG_BUTTONS", f"error fetching og buttons: {e}", type="error")
     return buttons
@@ -258,6 +315,19 @@ METADATA_MAP = [
     ("Category", "category"),
 ]
 
+_DATE_PREFIXES = re.compile(
+    r"^(?:Recorded|Surfaced|Leaked|First Previewed|Previewed|"
+    r"[A-Z][^,\n]*?(?:'s Vocals|'s Chorus.*|Chorus.*|Verse.*|Ad-Libs.*|Vocals))\s*[\r\n]+",
+    re.IGNORECASE,
+)
+
+
+def clean_date_value(val):
+    if not val:
+        return val
+    cleaned = _DATE_PREFIXES.sub("", str(val)).strip()
+    return cleaned or val
+
 
 def build_metadata_fields(song):
     fields = []
@@ -272,6 +342,8 @@ def build_metadata_fields(song):
             continue
         if label == "Category":
             val_str = val_str.replace("_", " ").title()
+        elif key in ("record_dates", "date_leaked", "preview_date"):
+            val_str = clean_date_value(val_str)
         fields.append(f"**{label}**\n{val_str}")
     return fields
 
@@ -402,7 +474,7 @@ async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=N
         if og_buttons:
             main_cont.add_separator(divider=True, spacing=SeparatorSpacingSize.small)
             main_cont.add_item(ActionRow(*og_buttons))
-    view = createView(main_cont, view_class=PersistentSongView, timeout=None if mode == "leak" else 1800)
+    view = createView(main_cont, viewClass=PersistentSongView, timeout=None if mode == "leak" else 1800)
     if matches and len(matches) > 1:
         async def on_select(interaction, song_id):
             if interaction.user.id != user_id:
@@ -534,7 +606,7 @@ async def send_file(interaction, url, filename, kind, session=None):
                         description=f"{kind} is too large to send. Download/View it below.",
                         color=colors.red,
                     )
-                    view = createView(container, view_class=PersistentSongView)
+                    view = createView(container, viewClass=PersistentSongView)
                     view.add_item(ActionRow(Button(label="Open", url=url)))
                     await interaction.followup.send(view=view, ephemeral=True)
                     return False
@@ -573,6 +645,8 @@ class SongButton(discord.ui.Button):
         ext = self.found_ext or ".mp3"
         kind = "MP3" if ext == ".mp3" else "WAV"
         await send_file(interaction, self.stream_urls[0], f"{self.song.get('name', 'track')}{ext}", kind)
+        self.stream_urls = []
+        self.found_ext = None
 
 
 class SnipButton(discord.ui.Button):
@@ -606,6 +680,7 @@ class SnipButton(discord.ui.Button):
             if sent:
                 await db.incrementStat("snippets_sent")
             await asyncio.sleep(0.4)
+        self.stream_urls = []
 
 
 class SessionEditSendButton(discord.ui.Button):
@@ -671,7 +746,7 @@ def score_candidate(item, terms, *, require_sessions_hint=False):
 
 async def find_best_session_asset(query, *, kind):
     matched_song = None
-    results = findClosestMatch(stripVersionMarkers(query), list_all=True)
+    results = findClosestMatch(stripVersionMarkers(query), listAll=True)
     if results and isinstance(results, dict):
         matched_song = results.get("best")
     search_terms = build_session_search_terms(query, matched_song)
@@ -724,4 +799,4 @@ def build_session_asset_view(*, title, all_titles=None, category, path, song, bu
     if extra_buttons:
         buttons.extend(extra_buttons)
     cont.add_item(ActionRow(*buttons))
-    return createView(cont, view_class=PersistentSongView)
+    return createView(cont, viewClass=PersistentSongView)

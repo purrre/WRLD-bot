@@ -35,6 +35,7 @@ class TimeoutView(DesignerView):
                 await self.message.edit(view=self)
             except Exception:
                 pass
+        self.stop()
 
 
 class PersistentSongView(DesignerView):
@@ -52,6 +53,7 @@ class PersistentSongView(DesignerView):
                 await self.message.edit(view=self)
             except Exception:
                 pass
+        self.stop()
 
 
 class DropdownView(DesignerView):
@@ -65,6 +67,7 @@ class DropdownView(DesignerView):
                 await self.message.edit(view=None)
         except Exception:
             pass
+        self.stop()
 
 
 class DeleteRow(ActionRow):
