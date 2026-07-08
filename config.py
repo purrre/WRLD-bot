@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///data/WRLDDB.sqlite"
     redis_url: str = "redis://localhost:6379/0"
 
+    db_host: str = ""
+    db_user: str = ""
+    db_password: str = ""
+    db_name: str = ""
+    db_port: int = 3306
+
     gemini_api_key: str = ""
     ai_model: str = "gemini-2.0-flash"
 
