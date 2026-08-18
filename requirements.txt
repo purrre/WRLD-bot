@@ -3,7 +3,6 @@ pydantic-settings
 sqlalchemy[asyncio]
 aiosqlite>=0.19
 redis>=5.0
-redis-server
 pymysql
 aiohttp
 httpx>=0.27
