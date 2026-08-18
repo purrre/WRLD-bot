@@ -303,6 +303,101 @@ async def fetch_og_buttons(song):
 
 
 # ==============================================================================
+# instrumentals
+# ==============================================================================
+
+_INST_PREFIX = re.compile(r"^instrumental(?:\s*\(\d+\))?\s*:\s*", re.IGNORECASE)
+
+
+def parse_instrumentals(song):
+    """Extract instrumental beat name(s) from a song's `instrumentals` field.
+    Returns a list of name strings. Handles both plain strings and multi-line
+    fields with 'Instrumental:', 'Instrumental (1):' etc. prefixes."""
+    raw = str(song.get("instrumentals") or "").strip()
+    if not raw or raw.lower() in INVALID_VALS:
+        return []
+    names = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = _INST_PREFIX.match(line)
+        if m:
+            name = line[m.end():].strip()
+            if name:
+                names.append(name)
+        elif not any(p in line.lower() for p in ("loop", "midi", "stems", "kit")):
+            # ponytail: lines without "Instrumental:" prefix but also not loop/midi/stems/kit
+            # are treated as the instrumental name (single-line fields like "Wonderland", "shordi")
+            if not names:
+                names.append(line)
+    return names
+
+
+def _match_instrumental_items(items, query):
+    """Match browse items to an instrumental query. Tries exact stem match first,
+    then falls back to substring match (query contained in item name)."""
+    stem = query.rsplit(".", 1)[0].lower()
+    exact = [i for i in items if str(i.get("name", "")).rsplit(".", 1)[0].lower() == stem]
+    if exact:
+        return exact
+    # ponytail: substring fallback — handles short queries like "Cash Talk" matching
+    # "Playboi Carti x ... Type Beat - Cash Talk (Prod. ...).mp3"
+    return [i for i in items if stem in str(i.get("name", "")).lower()]
+
+
+async def fetch_instrumental_urls(song):
+    """Browse for instrumental files matching the parsed instrumental name(s).
+    Returns (urls, ext) like fetch_urls. Prefers paths under Instrumentals/."""
+    names = parse_instrumentals(song)
+    if not names:
+        return [], None
+    found = []
+    found_ext = None
+    for name in names:
+        query = filter_query_words(name)
+        if not query or len(query) < MIN_BROWSE_LENGTH:
+            continue
+        items = await browse_files(query)
+        if not items:
+            continue
+        candidates = _match_instrumental_items(items, query)
+        if not candidates:
+            continue
+        audio = [i for i in candidates if file_ext(i) in (".mp3", ".wav") and i.get("path")]
+        preferred = [i for i in audio if str(i.get("path", "")).startswith("Instrumentals/")]
+        for item in (preferred or audio):
+            url = downloadUrl(str(item.get("path")))
+            if url and url not in found:
+                found.append(url)
+                found_ext = found_ext or file_ext(item)
+    return found, found_ext
+
+
+async def fetch_instrumental_urls_by_name(name):
+    """Browse for instrumental files matching a direct instrumental name query."""
+    query = filter_query_words(name)
+    if not query or len(query) < MIN_BROWSE_LENGTH:
+        return [], None
+    items = await browse_files(query)
+    if not items:
+        return [], None
+    candidates = _match_instrumental_items(items, query)
+    if not candidates:
+        return [], None
+    audio = [i for i in candidates if file_ext(i) in (".mp3", ".wav") and i.get("path")]
+    preferred = [i for i in audio if str(i.get("path", "")).startswith("Instrumentals/")]
+    found = []
+    found_ext = None
+    for item in (preferred or audio):
+        url = downloadUrl(str(item.get("path")))
+        if url and url not in found:
+            found.append(url)
+            found_ext = found_ext or file_ext(item)
+    return found, found_ext
+
+
+# ==============================================================================
 # song view rendering
 # ==============================================================================
 
@@ -451,7 +546,7 @@ def build_song_details_section(song):
 
 async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=None):
     main_cont = createContainer()
-    show_details = mode not in ("leak", "snippets", "ogfile", "session")
+    show_details = mode not in ("leak", "snippets", "ogfile", "session", "instrumental")
     main_cont.add_item(build_song_container(song, include_details=show_details, mode=mode))
     if mode == "leak":
         main_cont.add_separator(divider=True)
@@ -464,6 +559,18 @@ async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=N
         main_cont.add_separator(divider=True)
         btn_row = [SnipButton(song)]
         main_cont.add_item(ActionRow(*btn_row))
+    elif mode == "instrumental":
+        inst_names = parse_instrumentals(song)
+        if inst_names:
+            main_cont.add_separator(divider=True)
+            btn_row = [InstButton(song)]
+            inst_urls, _ = await fetch_instrumental_urls(song)
+            if inst_urls:
+                btn_row.append(Button(label="\u200b", style=ButtonStyle.link, url=inst_urls[0]))
+            main_cont.add_item(ActionRow(*btn_row))
+        else:
+            main_cont.add_separator(divider=True, spacing=SeparatorSpacingSize.small)
+            main_cont.add_text(f"{emojis.fail} No instrumental listed for this track.")
     elif mode == "session":
         session_file = await find_session_file(song)
         if session_file:
@@ -490,8 +597,46 @@ async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=N
 
 
 def not_found_text(mode, query):
-    names = {"leak": "audio file", "snippets": "snippet files", "session": "session files", "info": "results"}
+    names = {"leak": "audio file", "snippets": "snippet files", "session": "session files", "instrumental": "instrumental", "info": "results"}
     return f"{emojis.fail} No {names.get(mode, 'results')} found for **{query}**."
+
+
+def build_not_found_view(query, matches, user_id, select_callback):
+    """Build the 'Not Found' disambiguation view: 'Did you mean **X**?' confirm button + dropdown.
+    select_callback(interaction, song) is called after deferring — use edit_original_response or followup."""
+    best = matches[0]
+    best_titles = best.get("track_titles") or [best.get("name", "Unknown")]
+    main_title = best_titles[0] if best_titles else best.get("name", "Unknown")
+    alt_titles = best_titles[1:] if len(best_titles) > 1 else []
+    cont = createContainer(title="Not Found", description=None, color=None)
+    suggestion = f"I couldn't find one exact match for `{query}`.\nDid you mean **{main_title}**?"
+    if alt_titles:
+        suggestion += f"\n-# ({', '.join(alt_titles[:3])})"
+    cont.add_text(suggestion)
+    confirm_button = Button(label=f"Yes, show {main_title}", style=ButtonStyle.gray, custom_id=f"confirm_{best.get('public_id', 0)}_{user_id}")
+
+    async def confirm_cb(interaction):
+        if interaction.user.id != user_id:
+            return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+        await interaction.response.defer()
+        await select_callback(interaction, best)
+
+    confirm_button.callback = confirm_cb
+    cont.add_item(ActionRow(confirm_button))
+    cont.add_text("## OR")
+    cont.add_text(f"Select from **{len(matches)}** matches below")
+
+    async def on_select(interaction, song_id):
+        if interaction.user.id != user_id:
+            return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+        await interaction.response.defer()
+        selected = next((s for s in matches if str(s.get("public_id")) == str(song_id)), None)
+        if selected:
+            await select_callback(interaction, selected)
+
+    dropdown = createSongDropdown(matches, user_id, placeholder="Choose a song...", callbackFunc=on_select)
+    cont.add_item(ActionRow(dropdown))
+    return createView(cont, viewClass=PersistentSongView)
 
 
 # ==============================================================================
@@ -590,7 +735,10 @@ async def send_file(interaction, url, filename, kind, session=None):
         session = await getSession()
     data = io.BytesIO()
     try:
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
+        # ponytail: total=300 gives large files room to download; sock_read=30 catches dead connections
+        # without aborting a slow-but-progressing transfer. The old total=60 caused empty "Error:" on big files.
+        timeout = aiohttp.ClientTimeout(total=300, sock_read=30, sock_connect=10)
+        async with session.get(url, timeout=timeout) as response:
             if response.status != 200:
                 await interaction.followup.send(
                     embed=discord.Embed(description=f"Failed to fetch the {kind} file.", color=colors.red),
@@ -613,14 +761,22 @@ async def send_file(interaction, url, filename, kind, session=None):
             data.seek(0)
             await interaction.followup.send(file=discord.File(data, filename=filename), ephemeral=True)
             return True
-    except Exception as error:
+    except (asyncio.TimeoutError, aiohttp.ServerTimeoutError):
         await interaction.followup.send(
-            embed=discord.Embed(description=f"⚠️ Error: {error}", color=colors.red),
+            embed=discord.Embed(description=f"Timed out downloading the {kind} file. Try again or use the link below.", color=colors.red),
+            ephemeral=True,
+        )
+        return False
+    except Exception as error:
+        msg = str(error).strip() or type(error).__name__
+        await interaction.followup.send(
+            embed=discord.Embed(description=f"⚠️ Error: {msg}", color=colors.red),
             ephemeral=True,
         )
         return False
     finally:
         data.close()
+
 
 
 class SongButton(discord.ui.Button):
@@ -681,6 +837,33 @@ class SnipButton(discord.ui.Button):
                 await db.incrementStat("snippets_sent")
             await asyncio.sleep(0.4)
         self.stream_urls = []
+
+
+class InstButton(discord.ui.Button):
+    def __init__(self, song):
+        super().__init__(emoji="🎹", label="Instrumental", style=discord.ButtonStyle.gray)
+        self.song = song
+        self.stream_urls = []
+        self.found_ext = None
+
+    async def callback(self, interaction):
+        await interaction.response.defer(ephemeral=True, invisible=False)
+        if not self.stream_urls:
+            urls, found_ext = await fetch_instrumental_urls(self.song)
+            self.stream_urls = list(dict.fromkeys(urls))
+            self.found_ext = found_ext
+        if not self.stream_urls:
+            await interaction.followup.send(
+                embed=discord.Embed(description="Couldn't find the instrumental :(", color=colors.main),
+                ephemeral=True,
+            )
+            return
+        ext = self.found_ext or ".mp3"
+        kind = "MP3" if ext == ".mp3" else "WAV"
+        filename = os.path.basename(urllib.parse.unquote(self.stream_urls[0]))
+        await send_file(interaction, self.stream_urls[0], filename, kind)
+        self.stream_urls = []
+        self.found_ext = None
 
 
 class SessionEditSendButton(discord.ui.Button):

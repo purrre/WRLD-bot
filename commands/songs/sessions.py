@@ -35,7 +35,7 @@ class SessionsCog(commands.Cog):
         main, alts = song_title(matched_song)
         return ([main] + alts if main else alts) or None
 
-    @bridge.bridge_command(aliases=["sessions", "rs"], description="Get the recording session for a track")
+    @bridge.bridge_command(aliases=["sessions", "rs", "studiosession"], description="Get the recording session for a track")
     async def session(self, ctx, *, song: str = None):
         cont = createContainer(
             title="Session Commands",

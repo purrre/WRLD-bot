@@ -177,7 +177,7 @@ class GroupbuysCog(commands.Cog):
         async with ctx.typing():
             data = cache.getGroupbuys()
             if not data:
-                await cacheManager.syncEndpoint("groupbuys", endpoints.groupbuys, paginate=False)
+                await cache_manager.syncEndpoint("groupbuys", endpoints.groupbuys, paginate=False)
                 data = cache.getGroupbuys()
             if not data:
                 return await ctx.respond(f"{emojis.fail} Failed to load groupbuy data.")

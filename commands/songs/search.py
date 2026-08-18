@@ -12,7 +12,7 @@ from utils.functions import downloadUrl, findClosestMatch, consoleLog, fireAndFo
 from utils.database import db
 from utils.cache import cache
 from utils.components import PersistentSongView, createContainer, createSongDropdown, createView
-from utils.songs import send_file, fetch_og_buttons, build_song_container, build_metadata_fields, build_notes_button, INVALID_VALS
+from utils.songs import send_file, fetch_og_buttons, build_song_container, build_metadata_fields, build_notes_button, INVALID_VALS, parse_instrumentals, InstButton
 
 class SearchCog(commands.Cog):
     def __init__(self, bot):
@@ -135,10 +135,13 @@ class SearchCog(commands.Cog):
                 await send_file(interaction, downloadUrl(path), f"{song.get('name', 'Track')}.mp3", "MP3")
 
             mp3_button.callback = mp3_callback
-            view.add_item(ActionRow(mp3_button))
+            file_buttons = [mp3_button]
+            if parse_instrumentals(song):
+                file_buttons.append(InstButton(song))
+            view.add_item(ActionRow(*file_buttons))
         return view
 
-    @bridge.bridge_command(name="info", aliases=["search", "track", "song"], description="Search for a track")
+    @bridge.bridge_command(name="info", aliases=["search", "track", "song", "songinfo"], description="Search for a track")
     @bridge.bridge_option(name="song", description="Name of the song to search for", required=True)
     async def info(self, ctx, *, song: str):
         songs_data = cache.getSongs()

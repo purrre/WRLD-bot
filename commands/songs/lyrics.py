@@ -9,7 +9,7 @@ from utils.cache import cache
 from utils.database import db
 from utils.components import PersistentSongView, createContainer, createSongDropdown, createView
 from utils.functions import getRandomLyric
-from utils.songs import build_song_container, song_matches
+from utils.songs import build_song_container, build_not_found_view, song_matches
 
 class LyricsCog(commands.Cog):
     def __init__(self, bot):
@@ -96,6 +96,15 @@ class LyricsCog(commands.Cog):
             view.add_item(ActionRow(createSongDropdown(matches, user_id, "Choose a song...", on_select)))
         return view
 
+    async def send_lyrics_followup(self, interaction, song):
+        """Send lyrics via followup (used after interaction.defer())."""
+        views, error = self.get_lyrics_views(song)
+        if error:
+            return await interaction.followup.send(error, ephemeral=True)
+        await interaction.followup.send(view=views[0], ephemeral=True)
+        for view in views[1:]:
+            await interaction.followup.send(view=view, ephemeral=True)
+
     @bridge.bridge_command(name="lyrics", aliases=["ly"], description="Get lyrics for a song")
     @bridge.bridge_option(name="song", description="Song name to get lyrics for", required=True)
     async def lyrics(self, ctx, *, song: str):
@@ -111,25 +120,11 @@ class LyricsCog(commands.Cog):
             )
         if len(lyric_matches) == 1:
             return await ctx.respond(view=self.build_lyrics_view(lyric_matches[0], ctx.author.id, lyric_matches))
-        count = self.count()
-        cont = createContainer(
-            title="Lyrics",
-            description=(
-                f"Found **{len(lyric_matches)}** songs matching **{song}** with lyrics available.\n\n"
-                f"-# The database currently contains **{count}** songs with lyrics."
-            ),
-        )
-        view = createView(cont, viewClass=PersistentSongView)
 
-        async def on_select(interaction, song_id):
-            if interaction.user.id != ctx.author.id:
-                return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
-            selected = next((s for s in lyric_matches if str(s.get("public_id")) == str(song_id)), None)
-            if selected:
-                await self.display_lyrics(interaction, selected)
+        async def show_lyrics(interaction, selected):
+            await self.send_lyrics_followup(interaction, selected)
 
-        dropdown = createSongDropdown(lyric_matches, ctx.author.id, "Choose a song...", on_select)
-        view.add_item(ActionRow(dropdown))
+        view = build_not_found_view(song, lyric_matches, ctx.author.id, show_lyrics)
         await ctx.respond(view=view)
 
     @bridge.bridge_command(name="randomlyric", aliases=["lyric", "rl"], description="Get a random lyric line")

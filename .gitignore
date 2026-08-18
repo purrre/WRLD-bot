@@ -3,6 +3,7 @@
 __pycache__/
 .venv/
 venv/
+.redis-src/
 data/*.sqlite
 reboot.json
 start.bat

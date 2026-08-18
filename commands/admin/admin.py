@@ -129,7 +129,7 @@ class AdminCog(commands.Cog):
         msg = await ctx.respond(f"{emojis.loading} Refreshing all caches...")
         try:
             start = asyncio.get_running_loop().time()
-            await cacheManager.syncAll()
+            await cache_manager.syncAll()
             elapsed = asyncio.get_running_loop().time() - start
             await msg.edit(f"{emojis.success} Cache refresh complete in {elapsed:.2f}s")
         except Exception as e:

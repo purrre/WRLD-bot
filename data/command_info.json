@@ -124,5 +124,11 @@
         "description": "View lyrics for a song",
         "usage": "lyrics `<song>`",
         "example": "lyrics Be Here"
+    },
+    "instrumental": {
+        "title": "Instrumental Search",
+        "description": "Search a tracks instrumental",
+        "usage": "instrumental `<song>`",
+        "example": "instrumental Be Here"
     }
 }

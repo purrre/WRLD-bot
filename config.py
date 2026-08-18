@@ -24,9 +24,6 @@ class Settings(BaseSettings):
     db_name: str = ""
     db_port: int = 3306
 
-    gemini_api_key: str = ""
-    ai_model: str = "gemini-2.0-flash"
-
     sync_enabled: bool = True
     sync_interval: int = 300
     sync_retries: int = 3
