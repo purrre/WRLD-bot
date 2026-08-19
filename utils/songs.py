@@ -670,10 +670,13 @@ def file_ext(item):
     return f".{basename.rsplit('.', 1)[1].lower()}"
 
 
-async def browse_files(query):
-    if len(query) < MIN_BROWSE_LENGTH:
-        return []
-    url = f"{endpoints.browse}{urllib.parse.quote(query)}"
+async def browse_files(query=None, *, path=None):
+    if path is not None:
+        url = f"{endpoints.browse.replace('search=', 'path=')}{urllib.parse.quote(path)}"
+    else:
+        if len(query) < MIN_BROWSE_LENGTH:
+            return []
+        url = f"{endpoints.browse}{urllib.parse.quote(query)}"
     session = await getSession()
     try:
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=10)) as response:
@@ -683,6 +686,29 @@ async def browse_files(query):
             return data.get("items", []) or []
     except Exception:
         return []
+
+
+async def fetch_snippet_urls(song):
+    # ponytail: browse search returns Snippets/ directories, not the .mp4/.mov inside;
+    # recurse via ?path= listing. Ceiling: one extra request per Snippets/ dir per query.
+    urls = []
+    found_ext = None
+    for query in song_queries(song):
+        items = await browse_files(query)
+        for item in items:
+            item_path = str(item.get("path", ""))
+            if not item_path.startswith("Snippets/"):
+                continue
+            contents = await browse_files(path=item_path) if item.get("type") == "directory" else [item]
+            for f in contents:
+                if file_ext(f) in (".mp4", ".mov") and f.get("path"):
+                    url = downloadUrl(str(f.get("path")))
+                    if url not in urls:
+                        urls.append(url)
+                        found_ext = found_ext or file_ext(f)
+        if urls:
+            return urls, found_ext
+    return [], None
 
 
 def upload_limit(interaction):
@@ -814,7 +840,7 @@ class SnipButton(discord.ui.Button):
     async def callback(self, interaction):
         await interaction.response.defer(ephemeral=True, invisible=False)
         if not self.stream_urls:
-            urls, found_ext = await fetch_urls(self.song, ext=".mp4")
+            urls, found_ext = await fetch_snippet_urls(self.song)
             if urls:
                 actual_ext = found_ext or ".mp4"
                 self.stream_urls = [(url, actual_ext) for url in urls]

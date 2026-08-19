@@ -9,7 +9,7 @@ from utils.functions import fetchJson, checkApiHealth, apiHost
 from utils.database import db
 from utils.components import createContainer, createView
 from utils.songs import (
-    song_matches, build_song_view, build_not_found_view, fetch_og_buttons, not_found_text,
+    song_matches, build_song_view, build_not_found_view, fetch_og_buttons, fetch_og_files, not_found_text,
     parse_instrumentals, fetch_instrumental_urls, fetch_instrumental_urls_by_name, send_file,
 )
 
@@ -42,6 +42,10 @@ class FilesCog(commands.Cog):
                 return await ctx.respond(not_found_text(mode, query), ephemeral=True)
             # filter to matches that actually have content for this mode
             available = [m for m in matches if self.has_content(m, mode)]
+            if mode == "ogfile":
+                # has_content only checks file_names presence (cheap proxy); verify via real browse
+                checks = await asyncio.gather(*[fetch_og_files(m) for m in available])
+                available = [m for m, paths in zip(available, checks) if paths]
             if not available:
                 return await ctx.respond(not_found_text(mode, query), ephemeral=True)
             if mode == "leak":
