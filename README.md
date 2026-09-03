@@ -1,8 +1,10 @@
 ## WRLD
 
+NOTICE: My motivation for this bot has died down so most changes are now done by Claude <3
+
 WRLD (changed from wrld -> WRLD), rebuilt. this is the open-source version of my Juice WRLD discord bot, cleaned up and
 made easy to self-host. it pulls song, leak, lyric, cover and groupbuy data from
-[juiceWRLDapi.com](https://juiceWRLDapi.com) and a couple of my own services, and serves it 
+[juicewrldapi.com](https://juiceWRLDapi.com) and a couple of my own services, and serves it 
 through text and slash commands. no more needing to rely on spammy bots like moonlight, canary, hh wrld, etc etc. You can build this and only need to rely on yourself!
 
 some practices i use are a little overkill for what the bot is, but thats because this is the base of a great project to come in the future..
@@ -15,7 +17,7 @@ this open sourced version includes slightly less features than my running one (f
 
 ## what changed from the old version
 
-i dont wanna type that much but its a lot more stable, better looking, and lots more features
+i dont wanna type that much but its a lot more stable, better looking, and lots more features. also up 2 date with juicewrldapi
 
 still built on [pycord](https://pycord.dev/), using components v2
 

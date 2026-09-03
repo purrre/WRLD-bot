@@ -6,12 +6,9 @@ import os
 import random
 import sys
 import traceback
-import urllib.parse
 
 import discord
 from discord.ext import commands
-from sqlalchemy import create_engine, text as sql_text
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 
 from config import settings, emojis
 from utils.cache import cache, cache_manager
@@ -192,91 +189,6 @@ class AdminCog(commands.Cog):
         await self.bot.db.removeBan(user.id)
         await ctx.respond(f"{emojis.success} Unbanned {user.mention}")
         consoleLog("ADMIN", f"{ctx.author} unbanned {user}")
-
-    @adminCheck()
-    @commands.command(name="portdb")
-    async def portdb(self, ctx):
-        if not settings.db_host or not settings.db_name:
-            return await ctx.respond(f"{emojis.fail} No MySQL credentials configured in `.env`.")
-
-        msg = await ctx.reply(f"{emojis.loading} Connecting to MySQL at `{settings.db_host}`...")
-
-        mysql_url = (
-            f"mysql+pymysql://{urllib.parse.quote_plus(settings.db_user)}:{urllib.parse.quote_plus(settings.db_password)}"
-            f"@{settings.db_host}:{settings.db_port}/{settings.db_name}?charset=utf8mb4"
-        )
-
-        try:
-            mysql_engine = create_engine(mysql_url, echo=False, pool_pre_ping=True)
-            with mysql_engine.connect() as conn:
-                mysql_tables = conn.execute(
-                    sql_text("SELECT TABLE_NAME FROM information_schema.tables WHERE TABLE_SCHEMA = :db"),
-                    {"db": settings.db_name},
-                ).scalars().all()
-        except Exception as e:
-            await msg.edit(content=f"{emojis.fail} Failed to connect to MySQL:\n```py\n{e}\n```")
-            return
-
-        if not mysql_tables:
-            await msg.edit(content=f"{emojis.fail} No tables found in `{settings.db_name}`.")
-            return
-
-        local_tables = set(Base.metadata.tables.keys())
-        results = []
-
-        for table_name in mysql_tables:
-            if table_name not in local_tables:
-                results.append(f"**{table_name}**: skipped (not in local schema)")
-                continue
-
-            try:
-                with mysql_engine.connect() as conn:
-                    rows = conn.execute(sql_text(f"SELECT * FROM `{table_name}`")).mappings().all()
-                    row_dicts = [dict(r) for r in rows]
-
-                if not row_dicts:
-                    results.append(f"**{table_name}**: 0 rows (empty)")
-                    continue
-
-                table = Base.metadata.tables[table_name]
-                pk_cols = [c.name for c in table.primary_key.columns]
-
-                await msg.edit(content=f"{emojis.loading} Porting `{table_name}` ({len(row_dicts)} rows)...")
-
-                async with db.session() as s:
-                    await s.execute(table.delete())
-                    for row in row_dicts:
-                        clean = {k: v for k, v in row.items() if k in table.c}
-                        if pk_cols:
-                            stmt = sqlite_insert(table).values(**clean)
-                            set_dict = {c: getattr(table.c, c) for c in clean if c not in pk_cols}
-                            if set_dict:
-                                stmt = stmt.on_conflict_do_update(index_elements=pk_cols, set_=set_dict)
-                            else:
-                                stmt = stmt.on_conflict_do_nothing(index_elements=pk_cols)
-                            await s.execute(stmt, clean)
-                        else:
-                            await s.execute(table.insert().values(**clean))
-                    await s.commit()
-
-                results.append(f"**{table_name}**: {len(row_dicts)} rows ported")
-                consoleLog("PORTDB", f"ported {table_name}: {len(row_dicts)} rows")
-            except Exception as e:
-                results.append(f"**{table_name}**: error — {e}")
-                consoleLog("PORTDB", f"error porting {table_name}: {e}", type="error")
-
-        mysql_engine.dispose()
-
-        await db.loadRuntime()
-
-        summary = "\n".join(results)
-        if len(summary) > 1900:
-            fp = io.BytesIO(summary.encode("utf-8"))
-            await msg.edit(content=f"{emojis.success} Port complete. See attached log.")
-            await ctx.send(file=discord.File(fp, filename="portdb_log.txt"), ephemeral=True)
-        else:
-            await msg.edit(content=f"{emojis.success} Port complete:\n```\n{summary}\n```")
-        consoleLog("ADMIN", f"portdb completed by {ctx.author}")
 
 
 def setup(bot):

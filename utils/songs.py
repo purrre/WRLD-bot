@@ -177,44 +177,45 @@ def extract_fnames(file_names_field):
 
 
 async def find_session_file(song):
+    """Find both session zip and session edit paths for a song."""
     query = song.get("name") or ((song.get("track_titles") or [""])[0])
     if not query:
         return None
-    terms = [query.strip()]
-    song_name = str(song.get("name", "")).strip()
-    if song_name:
-        terms.append(song_name)
-    titles = song.get("track_titles", [])
-    if isinstance(titles, list) and titles:
-        terms.extend([str(t).strip() for t in titles if t])
-    terms = list(set(terms))
+    search_terms = build_session_search_terms(query, song)
+    if not search_terms:
+        return None
+    zip_path = None
+    edit_path = None
+    zip_best_score = 0
+    edit_best_score = 0
     try:
-        items = await fetchBrowseItems("sessions")
-        if not items:
-            return None
-        best_match = None
-        best_score = 0
-        for item in items:
-            item_name = normalizeText(str(item.get("name", "")))
-            item_path = normalizeText(str(item.get("path", "")))
-            combined = f"{item_name} {item_path}"
-            score = 0
-            for term in terms:
-                term_norm = normalizeText(term)
-                if term_norm in item_name:
-                    score += 10
-                if term_norm in item_path:
-                    score += 5
-                if term_norm in combined:
-                    score += 3
-            if score > best_score:
-                best_score = score
-                best_match = item
-        if best_match and best_score >= 5:
-            return best_match
+        for term in search_terms:
+            items = await fetchBrowseItems(term)
+            for item in items:
+                path = str(item.get("path", "")).strip()
+                ext = str(item.get("extension", "")).lower()
+                if not path:
+                    continue
+                if not zip_path and ext == ".zip" and path.startswith("Studio Sessions/"):
+                    score = score_candidate(item, search_terms, require_sessions_hint=True)
+                    path_lower = path.lower()
+                    if "protools" in path_lower or "album deliverables" in path_lower:
+                        score += 5
+                    if score > zip_best_score:
+                        zip_best_score = score
+                        zip_path = path
+                if not edit_path and path.startswith("Session Edits/"):
+                    score = score_candidate(item, search_terms, require_sessions_hint=False)
+                    if score > edit_best_score:
+                        edit_best_score = score
+                        edit_path = path
+            if zip_path and edit_path:
+                break
     except Exception as e:
         consoleLog("SESSION_FILE", f"error finding session file: {e}", type="error")
-    return None
+    if not zip_path and not edit_path:
+        return None
+    return {"zip_path": zip_path, "edit_path": edit_path}
 
 
 def split_ext(name):
@@ -336,14 +337,39 @@ def parse_instrumentals(song):
 
 def _match_instrumental_items(items, query):
     """Match browse items to an instrumental query. Tries exact stem match first,
-    then falls back to substring match (query contained in item name)."""
+    then falls back to substring match (query contained in item name).
+    Returns exact matches first, then substring matches — caller filters by extension."""
     stem = query.rsplit(".", 1)[0].lower()
     exact = [i for i in items if str(i.get("name", "")).rsplit(".", 1)[0].lower() == stem]
-    if exact:
-        return exact
-    # ponytail: substring fallback — handles short queries like "Cash Talk" matching
-    # "Playboi Carti x ... Type Beat - Cash Talk (Prod. ...).mp3"
-    return [i for i in items if stem in str(i.get("name", "")).lower()]
+    # ponytail: don't return early on exact matches — a directory named "Wasted" matches
+    # exactly but the actual file "Wasted intrumental prod by Cbmix.wav" only matches
+    # via substring. Include both so the caller's audio filter can pick the file.
+    substring = [i for i in items if stem in str(i.get("name", "")).lower() and i not in exact]
+    return exact + substring
+
+
+async def _browse_instrumental(query):
+    """Browse for instrumental files, trying the full query first then progressively
+    shorter prefixes. The browse API does phrase matching, so multi-word queries like
+    'Wasted intrumental Cbmix' return nothing while 'Wasted' returns the file.
+    Returns (items, effective_query) — effective_query is what actually got results."""
+    query = filter_query_words(query)
+    if not query or len(query) < MIN_BROWSE_LENGTH:
+        return [], None
+    items = await browse_files(query)
+    if items:
+        return items, query
+    # ponytail: browse API does phrase matching, multi-word queries often return 0;
+    # try the first word as a fallback. Ceiling: if the first word is too generic
+    # (e.g. "Type"), may return noise — _match_instrumental_items filters it.
+    words = query.split()
+    if len(words) > 1:
+        first = words[0]
+        if len(first) >= MIN_BROWSE_LENGTH:
+            items = await browse_files(first)
+            if items:
+                return items, first
+    return [], None
 
 
 async def fetch_instrumental_urls(song):
@@ -358,10 +384,10 @@ async def fetch_instrumental_urls(song):
         query = filter_query_words(name)
         if not query or len(query) < MIN_BROWSE_LENGTH:
             continue
-        items = await browse_files(query)
+        items, effective_query = await _browse_instrumental(name)
         if not items:
             continue
-        candidates = _match_instrumental_items(items, query)
+        candidates = _match_instrumental_items(items, effective_query)
         if not candidates:
             continue
         audio = [i for i in candidates if file_ext(i) in (".mp3", ".wav") and i.get("path")]
@@ -379,10 +405,10 @@ async def fetch_instrumental_urls_by_name(name):
     query = filter_query_words(name)
     if not query or len(query) < MIN_BROWSE_LENGTH:
         return [], None
-    items = await browse_files(query)
+    items, effective_query = await _browse_instrumental(name)
     if not items:
         return [], None
-    candidates = _match_instrumental_items(items, query)
+    candidates = _match_instrumental_items(items, effective_query)
     if not candidates:
         return [], None
     audio = [i for i in candidates if file_ext(i) in (".mp3", ".wav") and i.get("path")]
@@ -574,7 +600,13 @@ async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=N
     elif mode == "session":
         session_file = await find_session_file(song)
         if session_file:
-            main_cont.add_item(ActionRow(SessionEditSendButton(session_file.get("path")), SessionZipSendButton(session_file.get("path"))))
+            buttons = []
+            if session_file.get("edit_path"):
+                buttons.append(SessionEditSendButton(session_file["edit_path"]))
+            if session_file.get("zip_path"):
+                buttons.append(SessionZipSendButton(session_file["zip_path"]))
+            if buttons:
+                main_cont.add_item(ActionRow(*buttons))
     if mode == "ogfile":
         if not og_buttons:
             og_buttons = await fetch_og_buttons(song)
@@ -590,6 +622,7 @@ async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=N
             selected = next((m for m in matches if str(m.get("public_id")) == str(song_id)), None)
             if selected:
                 new_view = await build_song_view(selected, user_id, mode, matches)
+                view.stop()
                 await interaction.edit_original_response(view=new_view)
         dropdown = createSongDropdown(matches, user_id, "Choose a song...", on_select)
         view.add_item(ActionRow(dropdown))
@@ -614,11 +647,13 @@ def build_not_found_view(query, matches, user_id, select_callback):
         suggestion += f"\n-# ({', '.join(alt_titles[:3])})"
     cont.add_text(suggestion)
     confirm_button = Button(label=f"Yes, show {main_title}", style=ButtonStyle.gray, custom_id=f"confirm_{best.get('public_id', 0)}_{user_id}")
+    view = createView(cont, viewClass=PersistentSongView)
 
     async def confirm_cb(interaction):
         if interaction.user.id != user_id:
             return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
         await interaction.response.defer()
+        view.stop()
         await select_callback(interaction, best)
 
     confirm_button.callback = confirm_cb
@@ -633,10 +668,11 @@ def build_not_found_view(query, matches, user_id, select_callback):
         selected = next((s for s in matches if str(s.get("public_id")) == str(song_id)), None)
         if selected:
             await select_callback(interaction, selected)
+            view.stop()
 
     dropdown = createSongDropdown(matches, user_id, placeholder="Choose a song...", callbackFunc=on_select)
     cont.add_item(ActionRow(dropdown))
-    return createView(cont, viewClass=PersistentSongView)
+    return view
 
 
 # ==============================================================================
@@ -953,6 +989,17 @@ def score_candidate(item, terms, *, require_sessions_hint=False):
     return score
 
 
+def era_folder_matches(era_name, path):
+    """Check if the era folder (2nd path component) matches the song's era."""
+    if not era_name or not path:
+        return False
+    full_era = ALBUM_MAPPING.get(era_name.strip()) or era_name.strip()
+    parts = str(path).split("/")
+    if len(parts) < 2:
+        return False
+    return normalizeText(full_era) in normalizeText(parts[1])
+
+
 async def find_best_session_asset(query, *, kind):
     matched_song = None
     results = findClosestMatch(stripVersionMarkers(query), listAll=True)
@@ -960,7 +1007,7 @@ async def find_best_session_asset(query, *, kind):
         matched_song = results.get("best")
     search_terms = build_session_search_terms(query, matched_song)
     if not search_terms:
-        return None, matched_song
+        return [], matched_song
     candidates_by_path = {}
     for term in search_terms:
         items = await fetchBrowseItems(term)
@@ -970,9 +1017,13 @@ async def find_best_session_asset(query, *, kind):
             if not path:
                 continue
             if kind == "zip":
-                if ext != ".zip":
+                if ext != ".zip" or not path.startswith("Studio Sessions/"):
                     continue
                 score = score_candidate(item, search_terms, require_sessions_hint=True)
+                # ponytail: prefer ProTools/Album Deliverables over Multi-Track Stems/Trackouts
+                path_lower = path.lower()
+                if "protools" in path_lower or "album deliverables" in path_lower:
+                    score += 5
             else:
                 if not path.startswith("Session Edits/"):
                     continue
@@ -981,9 +1032,21 @@ async def find_best_session_asset(query, *, kind):
             if existing is None or score > existing[0]:
                 candidates_by_path[path] = (score, item)
     if not candidates_by_path:
-        return None, matched_song
-    best_path, _ = max(candidates_by_path.items(), key=lambda entry: entry[1][0])
-    return best_path, matched_song
+        return [], matched_song
+    # ponytail: filter by era folder when song has era info; ceiling: if era data is wrong, returns nothing
+    era_name = None
+    if matched_song:
+        era = matched_song.get("era")
+        if isinstance(era, dict):
+            era_name = era.get("name")
+        elif era:
+            era_name = str(era)
+    if era_name:
+        era_filtered = {p: v for p, v in candidates_by_path.items() if era_folder_matches(era_name, p)}
+        if era_filtered:
+            candidates_by_path = era_filtered
+    sorted_paths = [p for p, _ in sorted(candidates_by_path.items(), key=lambda e: e[1][0], reverse=True)]
+    return sorted_paths, matched_song
 
 
 def build_session_asset_view(*, title, all_titles=None, category, path, song, button, extra_buttons=None, show_file=True, cover_url=None):

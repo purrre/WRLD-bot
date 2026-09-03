@@ -49,7 +49,7 @@ class SearchCog(commands.Cog):
             return await interaction.response.send_message(f"{emojis.fail} No groupbuy information available for this song.", ephemeral=True)
         await interaction.response.send_message(view=createView(gb_cont, viewClass=PersistentSongView), ephemeral=True)
 
-    async def update_og_buttons(self, message_or_interaction, song, user_id, all_results=None):
+    async def update_og_buttons(self, message_or_interaction, song, user_id, all_results=None, old_view=None):
         if message_or_interaction is None:
             return
         try:
@@ -61,22 +61,27 @@ class SearchCog(commands.Cog):
                 await message_or_interaction.edit_original_response(view=new_view)
             else:
                 await message_or_interaction.edit(view=new_view)
+            if old_view is not None:
+                old_view.stop()
         except discord.NotFound:
             pass
         except Exception as e:
             consoleLog("OG", f"error updating og buttons: {e}", type="error")
 
     async def show_song_and_update_og(self, interaction, song, user_id, all_results):
-        await interaction.edit_original_response(view=self.build_song_view(song, user_id, all_results))
-        fireAndForget(self.update_og_buttons(interaction, song, user_id, all_results))
+        new_view = self.build_song_view(song, user_id, all_results)
+        await interaction.edit_original_response(view=new_view)
+        fireAndForget(self.update_og_buttons(interaction, song, user_id, all_results, new_view))
 
-    def make_select_callback(self, user_id, all_results):
+    def make_select_callback(self, user_id, all_results, old_view=None):
         async def on_select(interaction, song_id):
             if interaction.user.id != user_id:
                 return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
             await interaction.response.defer()
             selected = next((s for s in all_results if str(s.get("public_id")) == str(song_id)), None)
             if selected:
+                if old_view is not None:
+                    old_view.stop()
                 await self.show_song_and_update_og(interaction, selected, user_id, all_results)
         return on_select
 
@@ -124,7 +129,7 @@ class SearchCog(commands.Cog):
             main_cont.add_item(ActionRow(*action_buttons))
         view.add_item(main_cont)
         if all_results and len(all_results) > 1:
-            dropdown = createSongDropdown(all_results, user_id, placeholder="Choose a song...", callbackFunc=self.make_select_callback(user_id, all_results))
+            dropdown = createSongDropdown(all_results, user_id, placeholder="Choose a song...", callbackFunc=self.make_select_callback(user_id, all_results, view))
             view.add_item(ActionRow(dropdown))
         path = song.get("path")
         if path:
@@ -186,19 +191,21 @@ class SearchCog(commands.Cog):
             multi_cont.add_text(suggestion_text)
             confirm_button = Button(label=f"Yes, show {main_title}", style=ButtonStyle.gray, custom_id=f"confirm_{best_match.get('public_id', 0)}_{ctx.author.id}")
 
+            view = createView(multi_cont, viewClass=PersistentSongView)
+
             async def confirm_callback(interaction):
                 if interaction.user.id != ctx.author.id:
                     return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
                 await interaction.response.defer()
+                view.stop()
                 await self.show_song_and_update_og(interaction, best_match, ctx.author.id, all_matches)
 
             confirm_button.callback = confirm_callback
             multi_cont.add_item(ActionRow(confirm_button))
             multi_cont.add_text("## OR")
             multi_cont.add_text(f"Select from **{len(all_matches)}** matches below")
-            dropdown = createSongDropdown(all_matches, ctx.author.id, placeholder="Choose a song...", callbackFunc=self.make_select_callback(ctx.author.id, all_matches))
+            dropdown = createSongDropdown(all_matches, ctx.author.id, placeholder="Choose a song...", callbackFunc=self.make_select_callback(ctx.author.id, all_matches, view))
             multi_cont.add_item(ActionRow(dropdown))
-            view = createView(multi_cont, viewClass=PersistentSongView)
             msg = await ctx.respond(view=view)
             view.message = msg
 
