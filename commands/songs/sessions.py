@@ -76,18 +76,41 @@ class SessionsCog(commands.Cog):
             if not paths:
                 return await ctx.respond(f"{emojis.fail} No session zip found for **{song}**.", ephemeral=True)
             await db.incrementStat("session_zips_found")
-            best_path = paths[0]
-            file_title = re.sub(r"\s*\(protools\)\s*$", "", os.path.splitext(os.path.basename(best_path))[0], flags=re.IGNORECASE).strip()
-            view = build_session_asset_view(
-                title=file_title,
-                all_titles=self.get_all_titles(matched_song),
-                category="Session Zip",
-                path=best_path,
-                song=matched_song,
-                button=discord.ui.Button(label="📁 Session Zip", style=discord.ButtonStyle.link, url=downloadUrl(best_path, plus=True)),
-                show_file=False,
-            )
-            await ctx.respond(view=view)
+            if len(paths) == 1:
+                return await self._respond_session_zip(ctx, paths[0], matched_song)
+            await self._respond_session_zip_disambiguation(ctx, song, paths, matched_song)
+
+    @staticmethod
+    def _session_zip_view(path, matched_song, all_titles):
+        file_title = re.sub(r"\s*\(protools\)\s*$", "", os.path.splitext(os.path.basename(path))[0], flags=re.IGNORECASE).strip()
+        return build_session_asset_view(
+            title=file_title,
+            all_titles=all_titles,
+            category="Session Zip",
+            path=path,
+            song=matched_song,
+            button=discord.ui.Button(label="📁 Session Zip", style=discord.ButtonStyle.link, url=downloadUrl(path, plus=True)),
+            show_file=False,
+        )
+
+    async def _respond_session_zip(self, ctx, path, matched_song):
+        view = self._session_zip_view(path, matched_song, self.get_all_titles(matched_song))
+        await ctx.respond(view=view)
+
+    async def _respond_session_zip_disambiguation(self, ctx, song, paths, matched_song):
+        all_titles = self.get_all_titles(matched_song)
+        pseudo_songs = []
+        for i, path in enumerate(paths):
+            name = re.sub(r"\s*\(protools\)\s*$", "", os.path.splitext(os.path.basename(path))[0], flags=re.IGNORECASE).strip()
+            pseudo_songs.append({"public_id": str(i), "name": name, "track_titles": [name], "category": "Session Zip"})
+
+        async def select_callback(interaction, pseudo):
+            idx = int(pseudo["public_id"])
+            view = self._session_zip_view(paths[idx], matched_song, all_titles)
+            await interaction.edit_original_response(view=view)
+
+        view = build_not_found_view(song, pseudo_songs, ctx.author.id, select_callback)
+        await ctx.respond(view=view)
 
     @bridge.bridge_command(aliases=["se"], description="Get a session edit file for a track")
     @bridge.bridge_option(name="song", description="Name of the song to search for", required=True)

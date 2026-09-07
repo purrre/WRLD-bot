@@ -392,7 +392,7 @@ async def fetch_instrumental_urls(song):
             continue
         audio = [i for i in candidates if file_ext(i) in (".mp3", ".wav") and i.get("path")]
         preferred = [i for i in audio if str(i.get("path", "")).startswith("Instrumentals/")]
-        for item in (preferred or audio):
+        for item in preferred:
             url = downloadUrl(str(item.get("path")))
             if url and url not in found:
                 found.append(url)
@@ -415,7 +415,7 @@ async def fetch_instrumental_urls_by_name(name):
     preferred = [i for i in audio if str(i.get("path", "")).startswith("Instrumentals/")]
     found = []
     found_ext = None
-    for item in (preferred or audio):
+    for item in preferred:
         url = downloadUrl(str(item.get("path")))
         if url and url not in found:
             found.append(url)
@@ -977,7 +977,11 @@ def score_candidate(item, terms, *, require_sessions_hint=False):
         t = normalizeText(term)
         if not t:
             continue
-        if t in name:
+        # ponytail: exact name match scores much higher than substring —
+        # prevents "Big" matching "Big Swag" with the same score
+        if t == name:
+            score += 15
+        elif t in name:
             score += 6
         elif t in combined:
             score += 3
