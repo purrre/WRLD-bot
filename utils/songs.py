@@ -556,8 +556,13 @@ def build_song_container(song, include_details=True, mode="info"):
     if include_details and details_valid and len(details) <= notesLengthThreshold:
         header_lines.append(f"-# Details: `{details}`")
     full_img = image_url(song)
-    accessory = Thumbnail(full_img) if full_img else None
-    return Section(TextDisplay("\n".join(header_lines)), accessory=accessory)
+    header_text = TextDisplay("\n".join(header_lines))
+    # ponytail: Section requires an accessory (Thumbnail/Button); when a song has no
+    # image_url (e.g. released tracks), fall back to a plain TextDisplay — a Section
+    # with accessory=None is rejected by Discord with "accessory: This field is required".
+    if full_img:
+        return Section(header_text, accessory=Thumbnail(full_img))
+    return header_text
 
 
 def build_song_details_section(song):
@@ -565,8 +570,10 @@ def build_song_details_section(song):
     details_valid = details and details.lower() not in INVALID_VALS
     if details_valid and len(details) > notesLengthThreshold:
         full_img = image_url(song)
-        accessory = Thumbnail(full_img) if full_img else None
-        return Section(TextDisplay(f"### Details\n{details}"), accessory=accessory)
+        details_text = TextDisplay(f"### Details\n{details}")
+        if full_img:
+            return Section(details_text, accessory=Thumbnail(full_img))
+        return details_text
     return None
 
 
