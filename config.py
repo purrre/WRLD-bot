@@ -31,6 +31,8 @@ class Settings(BaseSettings):
 
     error_channel_id: int = 0
 
+    lastfm_api_key: str = ""
+
     @property
     def token(self):
         return self.dev_bot_token if self.dev_mode else self.bot_token

@@ -57,6 +57,12 @@ class SeenUser(Base):
     user_id = Column(String(25), primary_key=True)
     seen_at = Column(DateTime, server_default=func.now())
 
+class LastFmUser(Base):
+    __tablename__ = "lastfm_users"
+    user_id = Column(String(25), primary_key=True)
+    username = Column(String(64), nullable=False)
+    hidden = Column(Integer, server_default="0", nullable=False)
+
 statColumns = (
     "commands_run", "slash_commands_run", "track_searches", "random_songs_found",
     "lyrics_searched", "random_lyrics_found", "leaks_found", "session_zips_found",
@@ -261,6 +267,29 @@ class Database:
         async with self.session() as s:
             await s.execute(delete(Grail).where(Grail.user_id == str(userId)))
             await s.commit()
+
+    # ---- lastfm ----
+    async def getLastfm(self, userId):
+        async with self.session() as s:
+            row = (await s.execute(select(LastFmUser).where(LastFmUser.user_id == str(userId)))).scalar_one_or_none()
+            return (row.username, bool(row.hidden)) if row else None
+
+    async def setLastfm(self, userId, username, hidden=False):
+        uid = str(userId)
+        hidden_int = int(bool(hidden))
+        async with self.session() as s:
+            stmt = sqlite_insert(LastFmUser.__table__).values(user_id=uid, username=username, hidden=hidden_int)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["user_id"],
+                set_={"username": username, "hidden": hidden_int},
+            )
+            await s.execute(stmt)
+            await s.commit()
+
+    async def allLastfm(self):
+        async with self.session() as s:
+            rows = (await s.execute(select(LastFmUser))).scalars()
+            return {row.user_id: (row.username, bool(row.hidden)) for row in rows}
 
     # ---- generic table access ----
     def tables(self):

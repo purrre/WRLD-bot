@@ -14,3 +14,4 @@ commands/info/wrldai_context.py
 commands/info/wrldai.py
 commands/songs/tagger.py
 data/juiceinfo.json
+deploy.ps1
