@@ -17,7 +17,6 @@ from utils.components import loading, createView
 
 
 async def _probe(client, hosts):
-    """Ping each (base_url, paths) host; returns list of (name, ping_ms_or_None)."""
     results = []
     for name, (base_url, paths) in hosts.items():
         start = time.perf_counter()
@@ -50,7 +49,10 @@ class UtilsCog(commands.Cog):
         hosts = {
             'main': (endpoints.jwa, ['/']),
             'api': (endpoints.jwa, ['/juicewrld/']),
-            'media (master)': (endpoints.media, ['/status/'])
+            'master (deprecated)': (endpoints.media, ['/status/']),
+            'player': (endpoints.player, ['/']),
+            'beta': (endpoints.beta, ['/']),
+            
         }
         session = await getSession()
         status_lines = []

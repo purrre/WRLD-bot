@@ -2,7 +2,7 @@ from datetime import datetime
 
 import discord
 from discord import ButtonStyle, SeparatorSpacingSize, Color
-from discord.ui import Section, TextDisplay, Button, ActionRow, Thumbnail, Container, DesignerView, Select, button
+from discord.ui import Section, TextDisplay, Button, ActionRow, Thumbnail, Container, DesignerView, Select, button, BaseView
 
 from config import NOT_YOURS, colors
 from utils.functions import getEmojiMap
@@ -104,6 +104,14 @@ def createView(*items, viewClass=DesignerView, **view_kwargs):
     return view
 
 
+def stopParentView(item):
+    obj = item
+    while getattr(obj, "parent", None) is not None and not isinstance(obj, BaseView):
+        obj = obj.parent
+    if isinstance(obj, BaseView):
+        obj.stop()
+
+
 def createSongDropdown(songs, userId, placeholder, callbackFunc, formatType="song"):
     options = []
     seen = set()
@@ -140,6 +148,7 @@ def createSongDropdown(songs, userId, placeholder, callbackFunc, formatType="son
     async def defaultCallback(interaction):
         if interaction.user.id != userId:
             return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+        stopParentView(dropdown)
         if callbackFunc:
             await callbackFunc(interaction, dropdown.values[0])
 
@@ -187,6 +196,7 @@ class PaginatedView:
                 newPage = currentPage - 1 if direction == "prev" else currentPage + 1
                 newView, newButtons = self.createView(newPage)
                 self.attachCallbacks(newButtons, inter)
+                stopParentView(btn)
                 await inter.response.edit_message(view=newView)
             btn.callback = btnCallback
 

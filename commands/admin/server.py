@@ -4,7 +4,7 @@ from discord.ext import commands
 from discord.ui import ActionRow, Button
 
 from config import settings, emojis, colors, NOT_YOURS
-from utils.components import createContainer, createView
+from utils.components import createContainer, createView, stopParentView
 
 class ServerCog(commands.Cog):
     def __init__(self, bot):
@@ -96,22 +96,7 @@ class ServerCog(commands.Cog):
         except Exception as e:
             return await ctx.respond(f"{emojis.fail} Failed to set slowmode:\n```py\n{e}\n```")
         await ctx.respond(f"{emojis.success} Set channel slowmode to **{seconds} seconds**.")
-
-    @commands.guild_only()
-    @commands.has_permissions(manage_channels=True)
-    @commands.command(name="lock", aliases=["unlock"], description="Lock or unlock the current channel")
-    @commands.cooldown(1, 5, commands.BucketType.guild)
-    async def lock(self, ctx, *, reason: str = "No reason provided."):
-        channel = ctx.channel
-        overwrite = channel.overwrites_for(ctx.guild.default_role)
-        locked = overwrite.send_messages is False
-        overwrite.send_messages = None if locked else False
-        try:
-            await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite, reason=reason)
-        except Exception as e:
-            return await ctx.respond(f"{emojis.fail} Failed to toggle lock:\n```py\n{e}\n```")
-        action = "unlocked" if locked else "locked"
-        await ctx.respond(f"{emojis.success} Channel **{action}**.\n**Reason:** {reason}\n-# {action.capitalize()} by {ctx.author.mention}")
+        
 
     @commands.guild_only()
     @commands.has_permissions(administrator=True)
@@ -132,6 +117,7 @@ class ServerCog(commands.Cog):
         async def confirm_callback(interaction):
             if interaction.user.id != ctx.author.id:
                 return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+            stopParentView(confirm_btn)
             await interaction.response.defer()
             try:
                 new_channel = await old_channel.clone(reason=f"Nuked by {ctx.author}")
@@ -144,6 +130,7 @@ class ServerCog(commands.Cog):
         async def cancel_callback(interaction):
             if interaction.user.id != ctx.author.id:
                 return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+            stopParentView(cancel_btn)
             new_cont = createContainer(title="Cancelled", description="The channel was not nuked.", heading="##")
             await interaction.response.edit_message(view=createView(new_cont))
 

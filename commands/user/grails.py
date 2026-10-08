@@ -8,7 +8,7 @@ from discord.ui import ActionRow, Button
 
 from config import emojis, NOT_YOURS
 from utils.database import db
-from utils.components import createContainer, createView, createSimplePagination
+from utils.components import createContainer, createView, createSimplePagination, stopParentView
 
 class GrailCog(commands.Cog):
     def __init__(self, bot):
@@ -72,6 +72,7 @@ class GrailCog(commands.Cog):
         async def confirm_callback(interaction):
             if interaction.user.id != ctx.author.id:
                 return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+            stopParentView(confirm_btn)
             await db.clearGrails(ctx.author.id)
             new_cont = createContainer(title=f"{emojis.minus} Grails Cleared", description="All grails have been removed from your list.")
             await interaction.response.edit_message(view=createView(new_cont))
@@ -79,6 +80,7 @@ class GrailCog(commands.Cog):
         async def cancel_callback(interaction):
             if interaction.user.id != ctx.author.id:
                 return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+            stopParentView(cancel_btn)
             new_cont = createContainer(title="Cancelled", description="Your grail list was not changed.", heading="##")
             await interaction.response.edit_message(view=createView(new_cont))
 
@@ -110,6 +112,7 @@ class GrailCog(commands.Cog):
             async def confirm_callback(interaction):
                 if interaction.user.id != ctx.author.id:
                     return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+                stopParentView(confirm_btn)
                 await db.removeGrail(ctx.author.id, suggestion)
                 new_cont = createContainer(title=f"{emojis.minus} Grail Removed", description=f"Removed `{suggestion}` from your grail list.")
                 await interaction.response.edit_message(view=createView(new_cont))

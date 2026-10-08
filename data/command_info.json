@@ -220,5 +220,23 @@
         "description": "Display help information",
         "usage": "help [command]",
         "example": "help leak"
+    },
+    "nuke": {
+        "title": "Nuke",
+        "description": "Nuke a channel; Deletes and recreates it, nuking out message history.",
+        "usage": "nuke [#channel]",
+        "example": "nuke\nnuke #general"
+    },
+    "purge": {
+        "title": "Purge",
+        "description": "Purge a certain amount of messages",
+        "usage": "purge <amount>",
+        "example": "purge 82"
+    },
+    "slowmode": {
+        "title": "Slowmode",
+        "description": "Set slowmode for a channel",
+        "usage": "slowmode <seconds>",
+        "example": "slowmode 5"
     }
 }

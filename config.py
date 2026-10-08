@@ -49,6 +49,8 @@ class endpoints:
     jwa = "https://juicewrldapi.com"
     media = "https://m.juicewrldapi.com"
     wrld = "https://wrld.pure0.lol"
+    player = "https://player.juicewrldapi.com"
+    beta = "https://beta.juicewrldapi.com"
 
     # juicewrldapi
     songs = f"{jwa}/juicewrld/songs/"
