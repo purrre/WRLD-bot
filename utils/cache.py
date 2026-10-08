@@ -35,11 +35,6 @@ def computeHash(data):
     dumped = json.dumps(data, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(dumped.encode("utf-8")).hexdigest()
 
-def makeKey(*parts):
-    raw = ":".join(str(p) for p in parts)
-    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
-    return f"{keyPrefix}:v:{digest}"
-
 def dataKey(name):
     return f"{keyPrefix}:data:{name}"
 
@@ -53,14 +48,6 @@ class Cache:
 
     @staticmethod
     def getMeta(name):
-        return meta.get(name, {})
-
-    @staticmethod
-    def metadata(name):
-        return meta.get(name, {})
-
-    @staticmethod
-    def getMetadata(name):
         return meta.get(name, {})
 
     @staticmethod
@@ -194,39 +181,9 @@ class Cache:
         return entries if isinstance(entries, list) else []
 
     @classmethod
-    def getGroupbuyStats(cls):
+    def getGroupbuyYearlyStats(cls):
         stats = (cls.getGroupbuys() or {}).get("yearly_stats", {})
         return stats if isinstance(stats, dict) else {}
-
-    @classmethod
-    def getGroupbuyYearlyStats(cls):
-        return cls.getGroupbuyStats()
-
-    @staticmethod
-    async def remember(parts, ttl, factory):
-        #return cache, store, and return
-        key = makeKey(*parts)
-        r = getRedis()
-        try:
-            cached = await r.get(key)
-            if cached is not None:
-                return json.loads(cached)
-        except Exception:
-            pass
-        value = await factory()
-        if value is not None:
-            try:
-                await r.set(key, json.dumps(value), ex=ttl)
-            except Exception:
-                pass
-        return value
-
-    @staticmethod
-    async def invalidate(*parts):
-        try:
-            await getRedis().delete(makeKey(*parts))
-        except Exception:
-            pass
 
 
 class CacheSync:

@@ -61,6 +61,7 @@ class LastFMCog(commands.Cog):
         return display_name if hidden else lastfm_user
 
     @bridge.bridge_group(name="lastfm", aliases=["lf", "fm"], invoke_without_command=True)
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def lastfm(self, ctx):
         if ctx.invoked_subcommand is None:
             await self._nowplaying(ctx)
@@ -86,6 +87,7 @@ class LastFMCog(commands.Cog):
 
     @lastfm.command(name="nowplaying", aliases=["np", "playing"], description="See what you're currently playing on Last.fm")
     @bridge.bridge_option(name="username", description="Last.fm username to look up", required=False)
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def nowplaying(self, ctx, username: str = None):
         await self._nowplaying(ctx, username)
 
@@ -261,16 +263,19 @@ class LastFMCog(commands.Cog):
 
     @lastfm.command(name="whoknows", aliases=["wk"], description="See who in the server knows an artist")
     @bridge.bridge_option(name="query", description="Artist to look up (defaults to your current track)", required=False)
+    @commands.cooldown(1, 20, commands.BucketType.user)
     async def whoknows_artist(self, ctx, *, query: str = None):
         await self._whoknows(ctx, "artist", query)
 
     @lastfm.command(name="whoknowsalbum", aliases=["wka"], description="See who in the server knows an album")
     @bridge.bridge_option(name="query", description="Album to look up (defaults to your current track)", required=False)
+    @commands.cooldown(1, 20, commands.BucketType.user)
     async def whoknows_album(self, ctx, *, query: str = None):
         await self._whoknows(ctx, "album", query)
 
     @lastfm.command(name="whoknowstrack", aliases=["wkt"], description="See who in the server knows a track")
     @bridge.bridge_option(name="query", description="Track to look up (defaults to your current track)", required=False)
+    @commands.cooldown(1, 20, commands.BucketType.user)
     async def whoknows_track(self, ctx, *, query: str = None):
         await self._whoknows(ctx, "track", query)
 
@@ -311,18 +316,21 @@ class LastFMCog(commands.Cog):
     @lastfm.command(name="toptracks", aliases=["tt"], description="View your top tracks within a time period")
     @bridge.bridge_option(name="period", description="Time period", required=False, choices=PERIOD_CHOICES)
     @bridge.bridge_option(name="username", description="Last.fm username to look up", required=False)
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def toptracks(self, ctx, username: str = None, period: str = "7day"):
         await self._top(ctx, "tracks", period, username)
 
     @lastfm.command(name="topartists", aliases=["ta"], description="View your top artists within a time period")
     @bridge.bridge_option(name="period", description="Time period", required=False, choices=PERIOD_CHOICES)
     @bridge.bridge_option(name="username", description="Last.fm username to look up", required=False)
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def topartists(self, ctx, username: str = None, period: str = "7day"):
         await self._top(ctx, "artists", period, username)
 
     @lastfm.command(name="topalbums", aliases=["talb"], description="View your top albums within a time period")
     @bridge.bridge_option(name="period", description="Time period", required=False, choices=PERIOD_CHOICES)
     @bridge.bridge_option(name="username", description="Last.fm username to look up", required=False)
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def topalbums(self, ctx, username: str = None, period: str = "7day"):
         await self._top(ctx, "albums", period, username)
 
@@ -330,6 +338,7 @@ class LastFMCog(commands.Cog):
 
     @lastfm.command(name="latest", aliases=["recent", "rt"], description="View your latest tracks")
     @bridge.bridge_option(name="username", description="Last.fm username to look up", required=False)
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def latest(self, ctx, username: str = None):
         await ctx.defer()
         resolved = await self.resolve_user(ctx, username)

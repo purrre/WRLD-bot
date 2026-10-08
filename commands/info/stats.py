@@ -10,6 +10,7 @@ class StatsCog(commands.Cog):
         self.bot = bot
 
     @bridge.bridge_command(name="stats", description="View bot usage statistics")
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def wstats(self, ctx):
         row = await db.getStats()
         if not row:

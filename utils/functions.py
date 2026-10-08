@@ -123,8 +123,14 @@ async def httpcall(url, method="GET", paginate=False, expect_json=True, **kwargs
     session = await getSession()
     results = []
     current = url
+    host = apiHost(url)
     try:
-        while current:
+        # ponytail: bounded loop + same-host check — API-supplied "next" URLs can't loop
+        # forever or redirect fetches at arbitrary internal hosts
+        for _ in range(200):
+            next_host = apiHost(current) if current else ""
+            if not current or (next_host and next_host != host):
+                break
             async with session.request(method, current, **kwargs) as resp:
                 if resp.status >= 400:
                     return False, getErrorEmbed("API Request Failed", "Failed to fetch data from the endpoint.", status=resp.status)
@@ -361,19 +367,25 @@ def isBlacklistedUser(userId):
 
 backgroundTasks = set()
 
+def _taskDone(task):
+    backgroundTasks.discard(task)
+    if not task.cancelled() and task.exception() is not None:
+        consoleLog("TASK", f"background task failed: {task.exception()}", type="error")
+
 def fireAndForget(coro):
     try:
         task = asyncio.create_task(coro)
         backgroundTasks.add(task)
-        task.add_done_callback(backgroundTasks.discard)
+        task.add_done_callback(_taskDone)
     except RuntimeError:
         pass
 
 async def send(ctx, **kwargs):
-    if hasattr(ctx, "respond"):
-        await ctx.respond(**kwargs)
-    else:
-        await ctx.send(**{k: v for k, v in kwargs.items() if k != "ephemeral"})
+    # ponytail: prefix ctx can't do ephemeral (respond pops it) — auto-delete instead of leaking publicly
+    if not isinstance(ctx, discord.ApplicationContext):
+        kwargs.pop("ephemeral", None)
+        kwargs.setdefault("delete_after", 10)
+    await ctx.respond(**kwargs)
 
 def adminCheck():
     async def predicate(ctx):
@@ -413,16 +425,7 @@ def disabledCommandsCheck(bot):
             return True
         from utils.database import db
         if db.isCommandDisabled(ctx.guild.id, cmdName):
-            msg = f"{config.emojis.fail} `{cmdName}` is disabled in this server."
-            if hasattr(ctx, "respond"):
-                await ctx.respond(msg, ephemeral=True, delete_after=7.0)
-            else:
-                sent = await ctx.send(msg)
-                await asyncio.sleep(7)
-                try:
-                    await sent.delete()
-                except Exception:
-                    pass
+            await ctx.respond(f"{config.emojis.fail} `{cmdName}` is disabled in this server.", ephemeral=True, delete_after=7.0)
             raise commands.CheckFailure("command_disabled")
         return True
     return predicate
@@ -431,6 +434,8 @@ def disabledCommandsCheck(bot):
 # android gateway identify patch
 # ==============================================================================
 
+# ponytail: spoofs a Discord Android client identify — gray-area ToS, kept because the
+# desktop identify fingerprint got the bot flagged in the past. Revisit before publishing.
 async def mobileIdentify(self):
     payload = {
         "op": self.IDENTIFY,

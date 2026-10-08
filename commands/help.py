@@ -4,7 +4,7 @@ import time
 import discord
 from discord.ext import bridge, commands
 
-from config import colors, NOT_YOURS
+from config import colors, settings, NOT_YOURS
 from utils.components import loading, buildCommandGuide
 from utils.functions import getCommandInfo
 
@@ -145,8 +145,10 @@ class HelpCog(commands.Cog):
     @bridge.bridge_option(name="command", description="Specific command to get help for", required=False)
     @commands.cooldown(1, 7, commands.BucketType.user)
     async def help(self, ctx, command: str | None = None):
-        msg = await ctx.reply(embed=await loading("command"))
-        prefix = getattr(ctx, "clean_prefix", ctx.prefix)
+        msg = await ctx.respond(embed=await loading("command"))
+        if isinstance(msg, discord.Interaction):
+            msg = await msg.original_response()
+        prefix = getattr(ctx, "clean_prefix", None) or getattr(ctx, "prefix", None) or settings.prefix
         if command:
             cmd = self.bot.get_command(command)
             if not cmd:

@@ -20,54 +20,27 @@ def getEraEmoji(song):
         return None
     return emojiMap.get(era_key.strip()) or None
 
+# ponytail: disable_on_timeout is built into BaseView.on_timeout — it resolves the
+# message via view.message/parent automatically and disables all items on timeout.
 class TimeoutView(DesignerView):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("timeout", 60)
+        kwargs.setdefault("disable_on_timeout", True)
         super().__init__(*args, **kwargs)
-        self.message = None
-
-    async def on_timeout(self):
-        if self.message:
-            try:
-                for item in self.children:
-                    if hasattr(item, "disabled"):
-                        item.disabled = True
-                await self.message.edit(view=self)
-            except Exception:
-                pass
-        self.stop()
 
 
 class PersistentSongView(DesignerView):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("timeout", 1800)
+        kwargs.setdefault("disable_on_timeout", True)
         super().__init__(*args, **kwargs)
-        self.message = None
-
-    async def on_timeout(self):
-        if self.message:
-            try:
-                for item in self.children:
-                    if hasattr(item, "disabled"):
-                        item.disabled = True
-                await self.message.edit(view=self)
-            except Exception:
-                pass
-        self.stop()
 
 
 class DropdownView(DesignerView):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("timeout", 90)
+        kwargs.setdefault("disable_on_timeout", True)
         super().__init__(*args, **kwargs)
-
-    async def on_timeout(self):
-        try:
-            if getattr(self, "message", None):
-                await self.message.edit(view=None)
-        except Exception:
-            pass
-        self.stop()
 
 
 class DeleteRow(ActionRow):

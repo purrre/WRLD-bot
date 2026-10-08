@@ -25,10 +25,23 @@ else
     else
       echo "  Downloading static Redis binaries..."
       mkdir -p "$LOCAL_BIN"
+      # pinned SHA256s for phlummox-dev/redis-static-binaries 6.2.5.0 — fail closed on mismatch
+      REDIS_SERVER_SHA256="f8514c1ec1aa7522dcc06e978385ab155872fb4fe264f3cefa2392d516c86a66"
+      REDIS_CLI_SHA256="653f215cf399fe7af6beceee1d7dc21b7ac2e5f94bde116c9f8d5714da5a6ea55"
       curl -sL "https://github.com/phlummox-dev/redis-static-binaries/releases/download/6.2.5.0/redis-server" \
-        -o "$LOCAL_BIN/redis-server" && chmod +x "$LOCAL_BIN/redis-server"
+        -o "$LOCAL_BIN/redis-server"
       curl -sL "https://github.com/phlummox-dev/redis-static-binaries/releases/download/6.2.5.0/redis-cli" \
-        -o "$LOCAL_BIN/redis-cli" && chmod +x "$LOCAL_BIN/redis-cli"
+        -o "$LOCAL_BIN/redis-cli"
+
+      if command -v sha256sum &>/dev/null; then
+        if ! echo "$REDIS_SERVER_SHA256  $LOCAL_BIN/redis-server" | sha256sum -c - >/dev/null 2>&1 \
+          || ! echo "$REDIS_CLI_SHA256  $LOCAL_BIN/redis-cli" | sha256sum -c - >/dev/null 2>&1; then
+          echo "  Error: Redis binary checksum mismatch. Refusing to run."
+          rm -f "$LOCAL_BIN/redis-server" "$LOCAL_BIN/redis-cli"
+          exit 1
+        fi
+      fi
+      chmod +x "$LOCAL_BIN/redis-server" "$LOCAL_BIN/redis-cli"
 
       if [ -x "$LOCAL_BIN/redis-server" ]; then
         REDIS_BIN="$LOCAL_BIN/redis-server"

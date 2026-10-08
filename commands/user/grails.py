@@ -48,8 +48,11 @@ class GrailCog(commands.Cog):
     @grail.command(name="add")
     @bridge.bridge_option(name="grail", description="Name of the grail to add", required=True)
     async def add(self, ctx, *, grail: str):
-        if len(grail) > 70 or re.search(r"(https?://|www\.)\S+", grail, re.IGNORECASE):
+        if len(grail) > 70 or re.search(r"(https?://|www\.)\S+|<[@#]|@(everyone|here)", grail, re.IGNORECASE):
             cont = createContainer(title="Error", description=f"{emojis.fail} Grail string is too long or contains banned characters.")
+            return await ctx.respond(view=createView(cont), ephemeral=True)
+        if len(await db.getGrails(ctx.author.id)) >= 100:
+            cont = createContainer(title="Error", description=f"{emojis.fail} Your grail list is full (100 max). Remove some first.")
             return await ctx.respond(view=createView(cont), ephemeral=True)
         await db.addGrail(ctx.author.id, grail)
         cont = createContainer(title=f"{emojis.plus} Grail Added", description=f"Added `{grail}` to your grail list.")

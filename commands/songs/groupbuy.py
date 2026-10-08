@@ -172,26 +172,26 @@ class GroupbuysCog(commands.Cog):
     @bridge.bridge_option(name="query", description="Song name or year to search for", required=True)
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def groupbuy(self, ctx, *, query: str):
+        await ctx.defer()
         if not await checkApiHealth(endpoints.groupbuys):
             return await ctx.respond(f"{emojis.fail} {apiHost(endpoints.groupbuys)} is down. Please try again later.\n-# If this persists, contact `@purree`", ephemeral=True)
-        async with ctx.typing():
+        data = cache.getGroupbuys()
+        if not data:
+            await cache_manager.syncEndpoint("groupbuys", endpoints.groupbuys, paginate=False)
             data = cache.getGroupbuys()
-            if not data:
-                await cache_manager.syncEndpoint("groupbuys", endpoints.groupbuys, paginate=False)
-                data = cache.getGroupbuys()
-            if not data:
-                return await ctx.respond(f"{emojis.fail} Failed to load groupbuy data.")
-            yearly_stats = data.get("yearly_stats", {}) if isinstance(data, dict) else {}
-            entries = data.get("entries", []) if isinstance(data, dict) else []
-            year_option = yearly_stats.get(str(query).strip())
-            matches = search_entries(query, entries)
-            if year_option and not matches:
-                return await ctx.respond(view=createView(get_year_container(year_option)))
-            if not matches:
-                return await ctx.respond(f"{emojis.fail} No groupbuy information found for `{query}`.")
-            cont = get_year_container(year_option) if year_option else await create_groupbuy_container(matches[0])
-            view = self.build_groupbuy_view(cont, matches, ctx.author.id, year_option)
-            await ctx.respond(view=view)
+        if not data:
+            return await ctx.respond(f"{emojis.fail} Failed to load groupbuy data.")
+        yearly_stats = data.get("yearly_stats", {}) if isinstance(data, dict) else {}
+        entries = data.get("entries", []) if isinstance(data, dict) else []
+        year_option = yearly_stats.get(str(query).strip())
+        matches = search_entries(query, entries)
+        if year_option and not matches:
+            return await ctx.respond(view=createView(get_year_container(year_option)))
+        if not matches:
+            return await ctx.respond(f"{emojis.fail} No groupbuy information found for `{query}`.")
+        cont = get_year_container(year_option) if year_option else await create_groupbuy_container(matches[0])
+        view = self.build_groupbuy_view(cont, matches, ctx.author.id, year_option)
+        await ctx.respond(view=view)
 
 
 def setup(bot):

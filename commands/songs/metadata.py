@@ -31,7 +31,7 @@ def parse_date_clean(text, drop_prefix):
         if year and str(parsed.year) != year:
             parsed = parsed.replace(year=int(year))
         return parsed.strftime("%Y-%m-%d")
-    except (ValueError, TypeError, date_parser.ParserError):
+    except (ValueError, TypeError, OverflowError, date_parser.ParserError):
         return None
 
 def extract_date(text):
@@ -52,7 +52,7 @@ class MetadataCog(commands.Cog):
         return render
 
     def build_date_indexes(self, songs):
-        source_key = (id(songs), len(songs))
+        source_key = cache.getMeta("songs").get("data_hash") or (id(songs), len(songs))
         if source_key == self.date_index_source_key:
             return
         leaked_index, recorded_index, preview_index, leaked_sorted = {}, {}, {}, []
@@ -77,35 +77,36 @@ class MetadataCog(commands.Cog):
         self.date_index_source_key = source_key
 
     async def date_command(self, ctx, date, *, index_key, title_with_date, title_all=None, require_date=True):
+        await ctx.defer()
         songs = cache.getSongs()
         if not songs:
             return await ctx.respond(f"{emojis.fail} Song database unavailable.", ephemeral=True)
-        async with ctx.typing():
-            self.build_date_indexes(songs)
-            if date:
-                parsed = parse_date_clean(str(date).strip(), drop_prefix=False) if date else None
-                if not parsed:
-                    return await ctx.respond(f"{emojis.fail} Invalid date format. Try: YYYY-MM-DD, MM/DD/YYYY, or Month DD, YYYY", ephemeral=True)
-                matched = list(self.date_indexes[index_key].get(parsed, []))
-                if not matched:
-                    return await ctx.respond(f"{emojis.fail} {title_with_date(parsed, found=False)}", ephemeral=True)
-                title = title_with_date(parsed, found=True)
-            elif not require_date:
-                dated = self.date_indexes["date_leaked_sorted"]
-                if not dated:
-                    return await ctx.respond(f"{emojis.fail} No songs with surface dates found.", ephemeral=True)
-                matched = [s[0] for s in dated]
-                title = title_all
-            else:
-                return await ctx.respond(f"{emojis.fail} Invalid date format.", ephemeral=True)
+        self.build_date_indexes(songs)
+        if date:
+            parsed = parse_date_clean(str(date).strip(), drop_prefix=False) if date else None
+            if not parsed:
+                return await ctx.respond(f"{emojis.fail} Invalid date format. Try: YYYY-MM-DD, MM/DD/YYYY, or Month DD, YYYY", ephemeral=True)
+            matched = list(self.date_indexes[index_key].get(parsed, []))
+            if not matched:
+                return await ctx.respond(f"{emojis.fail} {title_with_date(parsed, found=False)}", ephemeral=True)
+            title = title_with_date(parsed, found=True)
+        elif not require_date:
+            dated = self.date_indexes["date_leaked_sorted"]
+            if not dated:
+                return await ctx.respond(f"{emojis.fail} No songs with surface dates found.", ephemeral=True)
+            matched = [s[0] for s in dated]
+            title = title_all
+        else:
+            return await ctx.respond(f"{emojis.fail} Invalid date format.", ephemeral=True)
 
-            await createSimplePagination(
-                items=matched, itemsPerPage=items, userId=ctx.author.id,
-                commandType=index_key, renderPageFunc=self.render_page(matched, title), viewClass=PersistentSongView,
-            ).show(ctx, 0)
+        await createSimplePagination(
+            items=matched, itemsPerPage=items, userId=ctx.author.id,
+            commandType=index_key, renderPageFunc=self.render_page(matched, title), viewClass=PersistentSongView,
+        ).show(ctx, 0)
 
     @bridge.bridge_command(name="surfaced", aliases=["leaked"], description="View songs by surface/leak date")
     @bridge.bridge_option(name="date", description="Date to search for", required=False)
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def surfaced(self, ctx, *, date: str = None):
         await self.date_command(
             ctx, date, index_key="date_leaked",
@@ -115,6 +116,7 @@ class MetadataCog(commands.Cog):
 
     @bridge.bridge_command(name="recorded", description="View songs recorded on a specific date")
     @bridge.bridge_option(name="date", description="Date to search for (ex. Nov 16 2018)", required=True)
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def recorded(self, ctx, *, date: str):
         await self.date_command(
             ctx, date, index_key="record_dates",
@@ -123,6 +125,7 @@ class MetadataCog(commands.Cog):
 
     @bridge.bridge_command(aliases=["prev"], name="previewed", description="View songs first previewed on a specific date")
     @bridge.bridge_option(name="date", description="Date to search for (ex. Nov 16 2018)", required=True)
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def previewed(self, ctx, *, date: str):
         await self.date_command(
             ctx, date, index_key="preview_date",
@@ -130,65 +133,68 @@ class MetadataCog(commands.Cog):
         )
 
     async def credit_search(self, ctx, query, *, field, command_type, not_found, title_prefix):
+        await ctx.defer()
         songs = cache.getSongs()
         if not songs:
             return await ctx.respond(f"{emojis.fail} Song database unavailable.", ephemeral=True)
-        async with ctx.typing():
-            q = query.lower()
-            matched, actual_name = [], None
-            for song in songs:
-                field_val = str(song.get(field, "") or "")
-                field_lower = field_val.lower()
-                hit = False
-                if q in field_lower:
-                    hit = True
-                    if not actual_name:
-                        for line in field_val.split("\n"):
-                            line = line.strip()
-                            if q in line.lower():
-                                for part in line.split(","):
-                                    part = part.strip()
-                                    for person in part.split("&"):
-                                        person = person.strip()
-                                        if person and person.lower() in q:
-                                            actual_name = person
-                                            break
-                                    if actual_name:
+        q = query.lower()
+        matched, actual_name = [], None
+        for song in songs:
+            field_val = str(song.get(field, "") or "")
+            field_lower = field_val.lower()
+            hit = False
+            if q in field_lower:
+                hit = True
+                if not actual_name:
+                    for line in field_val.split("\n"):
+                        line = line.strip()
+                        if q in line.lower():
+                            for part in line.split(","):
+                                part = part.strip()
+                                for person in part.split("&"):
+                                    person = person.strip()
+                                    if person and person.lower() in q:
+                                        actual_name = person
                                         break
-                                if not actual_name:
-                                    actual_name = query
-                                break
-                if not hit:
-                    for part in field_val.split(","):
-                        part = part.strip()
-                        if q in part.lower():
-                            hit = True
+                                if actual_name:
+                                    break
+                            if not actual_name:
+                                actual_name = query
                             break
-                if hit:
-                    matched.append(song)
-            if not matched:
-                return await ctx.respond(f"{emojis.fail} {not_found}", ephemeral=True)
-            title = f"{title_prefix} {actual_name or query}"
+            if not hit:
+                for part in field_val.split(","):
+                    part = part.strip()
+                    if q in part.lower():
+                        hit = True
+                        break
+            if hit:
+                matched.append(song)
+        if not matched:
+            return await ctx.respond(f"{emojis.fail} {not_found}", ephemeral=True)
+        title = f"{title_prefix} {actual_name or query}"
 
-            await createSimplePagination(
-                items=matched, itemsPerPage=items, userId=ctx.author.id,
-                commandType=command_type, renderPageFunc=self.render_page(matched, title), viewClass=PersistentSongView,
-            ).show(ctx, 0)
+        await createSimplePagination(
+            items=matched, itemsPerPage=items, userId=ctx.author.id,
+            commandType=command_type, renderPageFunc=self.render_page(matched, title), viewClass=PersistentSongView,
+        ).show(ctx, 0)
 
     @bridge.bridge_command(name="producer", aliases=["prod"], description="Search songs by producer")
     @bridge.bridge_option(name="producer", description="Name of the producer to search for", required=True)
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def producer(self, ctx, *, producer: str):
         await self.credit_search(ctx, producer, field="producers", command_type="producer",
                                   not_found=f"No songs found produced by `{producer}`.", title_prefix="Songs Produced by")
 
     @bridge.bridge_command(name="location", aliases=["loc"], description="Search songs by recording location")
     @bridge.bridge_option(name="location", description="Name of the recording location", required=True)
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def location(self, ctx, *, location: str):
         await self.credit_search(ctx, location, field="recording_locations", command_type="location",
                                   not_found=f"No songs found recorded at `{location}`.", title_prefix="Songs Recorded at")
 
     @bridge.bridge_command(name="engineer", aliases=["eng"], description="Search songs by engineer")
     @bridge.bridge_option(name="engineer", description="Name of the engineer to search for", required=True)
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def engineer(self, ctx, *, engineer: str):
         await self.credit_search(ctx, engineer, field="engineers", command_type="engineer",
                                   not_found=f"No songs found engineered by `{engineer}`.", title_prefix="Songs Engineered by")
@@ -271,51 +277,52 @@ class MetadataCog(commands.Cog):
         )
 
     @bridge.bridge_command(name="unsurfaced", aliases=["us"], description="View all unsurfaced songs, optionally filtered by era")
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def unsurfaced(self, ctx):
+        await ctx.defer()
         songs = cache.getSongs()
         if not songs:
             return await ctx.respond(f"{emojis.fail} Song database unavailable.", ephemeral=True)
-        async with ctx.typing():
-            matched = self.get_unsurfaced_songs(songs)
-            if not matched:
-                return await ctx.respond(f"{emojis.fail} No unsurfaced songs found.", ephemeral=True)
-            stats = self.calculate_unsurfaced_stats(songs)
-            r2 = "<:reply2:1407148805287182348>"
-            r1 = "<:reply:1407148693802455120>"
-            bk = "<:blank:1512827956144242688>"
-            stats_text = (
-                f"Total Unsurfaced: **{stats['total']:,}**\n"
-                f"{r2} Minus Posthumous: **{stats['without_posthumous']:,}**\n"
-                f"{r2} Without Features: **{stats['without_features']:,}**\n"
-                f"{r2} JuiceTheKidd: **{stats['juicethekidd']:,}**\n"
-                f"{r2} Juice WRLD: **{stats['juice_wrld']:,}**\n"
-                f"{bk}{r1} Engineered by Max Lord: **{stats['max_lord']:,}**\n"
-                "<:reply3:1512827072270303282>\n"
-                f"{r2} Unique: **{stats['unique']:,}**\n"
-                f"{bk}{r2} Unique minus Features: **{stats['unique_without_features']:,}**\n"
-                f"{bk}{r1} Unique minus Posthumous: **{stats['unique_without_posthumous']:,}**\n"
-            )
-            cont = createContainer(title=f"{emojis.info} Unsurfaced Stats", description=stats_text)
-            view = createView(cont)
-            era_options = self.get_unsurfaced_eras(songs)
-            if era_options:
-                era_select = Select(placeholder="Filter by era...", options=self.era_select_options(era_options))
+        matched = self.get_unsurfaced_songs(songs)
+        if not matched:
+            return await ctx.respond(f"{emojis.fail} No unsurfaced songs found.", ephemeral=True)
+        stats = self.calculate_unsurfaced_stats(songs)
+        r2 = "<:reply2:1407148805287182348>"
+        r1 = "<:reply:1407148693802455120>"
+        bk = "<:blank:1512827956144242688>"
+        stats_text = (
+            f"Total Unsurfaced: **{stats['total']:,}**\n"
+            f"{r2} Minus Posthumous: **{stats['without_posthumous']:,}**\n"
+            f"{r2} Without Features: **{stats['without_features']:,}**\n"
+            f"{r2} JuiceTheKidd: **{stats['juicethekidd']:,}**\n"
+            f"{r2} Juice WRLD: **{stats['juice_wrld']:,}**\n"
+            f"{bk}{r1} Engineered by Max Lord: **{stats['max_lord']:,}**\n"
+            "<:reply3:1512827072270303282>\n"
+            f"{r2} Unique: **{stats['unique']:,}**\n"
+            f"{bk}{r2} Unique minus Features: **{stats['unique_without_features']:,}**\n"
+            f"{bk}{r1} Unique minus Posthumous: **{stats['unique_without_posthumous']:,}**\n"
+        )
+        cont = createContainer(title=f"{emojis.info} Unsurfaced Stats", description=stats_text)
+        view = createView(cont)
+        era_options = self.get_unsurfaced_eras(songs)
+        if era_options:
+            era_select = Select(placeholder="Filter by era...", options=self.era_select_options(era_options))
 
-                async def era_callback(interaction):
-                    if interaction.user.id != ctx.author.id:
-                        return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
-                    selected = era_select.values[0]
-                    new_era = None if selected == "all" else selected
-                    new_matched = self.get_unsurfaced_songs(songs, era_filter=new_era)
-                    if not new_matched:
-                        return await interaction.response.send_message(f"{emojis.fail} No unsurfaced songs found for that era.", ephemeral=True)
-                    era_display = ERA_MAP.get(new_era, new_era) if new_era else None
-                    title = f"Unsurfaced Songs - {era_display}" if era_display else "Unsurfaced Songs"
-                    await self.build_unsurfaced_pagination(new_matched, title, ctx.author.id, era_options, new_era).show(interaction, 0)
+            async def era_callback(interaction):
+                if interaction.user.id != ctx.author.id:
+                    return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+                selected = era_select.values[0]
+                new_era = None if selected == "all" else selected
+                new_matched = self.get_unsurfaced_songs(songs, era_filter=new_era)
+                if not new_matched:
+                    return await interaction.response.send_message(f"{emojis.fail} No unsurfaced songs found for that era.", ephemeral=True)
+                era_display = ERA_MAP.get(new_era, new_era) if new_era else None
+                title = f"Unsurfaced Songs - {era_display}" if era_display else "Unsurfaced Songs"
+                await self.build_unsurfaced_pagination(new_matched, title, ctx.author.id, era_options, new_era).show(interaction, 0)
 
-                era_select.callback = era_callback
-                view.add_item(ActionRow(era_select))
-            await ctx.respond(view=view)
+            era_select.callback = era_callback
+            view.add_item(ActionRow(era_select))
+        await ctx.respond(view=view)
 
 
 def setup(bot):

@@ -799,52 +799,57 @@ async def fetch_urls(song, ext=None):
     return [], None
 
 
+# ponytail: bounds concurrent in-memory file buffers — each can be as large as upload_limit
+_send_file_sem = asyncio.Semaphore(4)
+
+
 async def send_file(interaction, url, filename, kind, session=None):
-    if session is None:
-        session = await getSession()
-    data = io.BytesIO()
-    try:
-        # ponytail: total=300 gives large files room to download; sock_read=30 catches dead connections
-        # without aborting a slow-but-progressing transfer. The old total=60 caused empty "Error:" on big files.
-        timeout = aiohttp.ClientTimeout(total=300, sock_read=30, sock_connect=10)
-        async with session.get(url, timeout=timeout) as response:
-            if response.status != 200:
-                await interaction.followup.send(
-                    embed=discord.Embed(description=f"Failed to fetch the {kind} file.", color=colors.red),
-                    ephemeral=True,
-                )
-                return False
-            max_size = upload_limit(interaction)
-            async for chunk in response.content.iter_chunked(1024 * 256):
-                data.write(chunk)
-                if data.tell() > max_size:
-                    container = createContainer(
-                        title="File Too Large",
-                        description=f"{kind} is too large to send. Download/View it below.",
-                        color=colors.red,
+    async with _send_file_sem:
+        if session is None:
+            session = await getSession()
+        data = io.BytesIO()
+        try:
+            # ponytail: total=300 gives large files room to download; sock_read=30 catches dead connections
+            # without aborting a slow-but-progressing transfer. The old total=60 caused empty "Error:" on big files.
+            timeout = aiohttp.ClientTimeout(total=300, sock_read=30, sock_connect=10)
+            async with session.get(url, timeout=timeout) as response:
+                if response.status != 200:
+                    await interaction.followup.send(
+                        embed=discord.Embed(description=f"Failed to fetch the {kind} file.", color=colors.red),
+                        ephemeral=True,
                     )
-                    view = createView(container, viewClass=PersistentSongView)
-                    view.add_item(ActionRow(Button(label="Open", url=url)))
-                    await interaction.followup.send(view=view, ephemeral=True)
                     return False
-            data.seek(0)
-            await interaction.followup.send(file=discord.File(data, filename=filename), ephemeral=True)
-            return True
-    except (asyncio.TimeoutError, aiohttp.ServerTimeoutError):
-        await interaction.followup.send(
-            embed=discord.Embed(description=f"Timed out downloading the {kind} file. Try again or use the link below.", color=colors.red),
-            ephemeral=True,
-        )
-        return False
-    except Exception as error:
-        msg = str(error).strip() or type(error).__name__
-        await interaction.followup.send(
-            embed=discord.Embed(description=f"⚠️ Error: {msg}", color=colors.red),
-            ephemeral=True,
-        )
-        return False
-    finally:
-        data.close()
+                max_size = upload_limit(interaction)
+                async for chunk in response.content.iter_chunked(1024 * 256):
+                    data.write(chunk)
+                    if data.tell() > max_size:
+                        container = createContainer(
+                            title="File Too Large",
+                            description=f"{kind} is too large to send. Download/View it below.",
+                            color=colors.red,
+                        )
+                        view = createView(container, viewClass=PersistentSongView)
+                        view.add_item(ActionRow(Button(label="Open", url=url)))
+                        await interaction.followup.send(view=view, ephemeral=True)
+                        return False
+                data.seek(0)
+                await interaction.followup.send(file=discord.File(data, filename=filename), ephemeral=True)
+                return True
+        except (asyncio.TimeoutError, aiohttp.ServerTimeoutError):
+            await interaction.followup.send(
+                embed=discord.Embed(description=f"Timed out downloading the {kind} file. Try again or use the link below.", color=colors.red),
+                ephemeral=True,
+            )
+            return False
+        except Exception as error:
+            consoleLog("SEND_FILE", f"{kind} failed: {error}", type="error")
+            await interaction.followup.send(
+                embed=discord.Embed(description=f"⚠️ Failed to send the {kind} file. Use the link below instead.", color=colors.red),
+                ephemeral=True,
+            )
+            return False
+        finally:
+            data.close()
 
 
 

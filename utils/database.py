@@ -19,13 +19,7 @@ class Base(DeclarativeBase):
 class Prefix(Base):
     __tablename__ = "prefixes"
     guild_id = Column(String(25), primary_key=True)
-    prefix = Column(String(10), nullable=False)
-
-class BannedGuild(Base):
-    __tablename__ = "banned_guilds"
-    guild_id = Column(String(25), primary_key=True)
-    reason = Column(Text)
-    timestamp = Column(DateTime, server_default=func.now())
+    prefix = Column(String(6), nullable=False)
 
 class BannedUser(Base):
     __tablename__ = "banned_users"
@@ -46,16 +40,6 @@ class Grail(Base):
     user_id = Column(String(25))
     song_name = Column(String(255))
     added_at = Column(DateTime, server_default=func.now())
-
-class TopSearch(Base):
-    __tablename__ = "top_searches"
-    search = Column(String(255), primary_key=True)
-    search_count = Column(Integer, server_default="1")
-
-class SeenUser(Base):
-    __tablename__ = "seen_users"
-    user_id = Column(String(25), primary_key=True)
-    seen_at = Column(DateTime, server_default=func.now())
 
 class LastFmUser(Base):
     __tablename__ = "lastfm_users"
@@ -101,7 +85,9 @@ class Database:
             url = normalizeSqliteUrl(config.settings.database_url)
             if url.startswith("sqlite") and ":///" in url:
                 dbPath = url.split(":///", 1)[1]
-                os.makedirs(os.path.dirname(dbPath), exist_ok=True)
+                dirName = os.path.dirname(dbPath)
+                if dirName:
+                    os.makedirs(dirName, exist_ok=True)
             self._engine = create_async_engine(url, echo=False)
             self._sessionMaker = async_sessionmaker(self._engine, expire_on_commit=False, class_=AsyncSession)
             consoleLog("DB", "engine ready")

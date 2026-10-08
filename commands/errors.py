@@ -1,4 +1,3 @@
-import sys
 import traceback
 
 from discord.ext import commands
@@ -9,7 +8,6 @@ from config import colors, emojis, settings
 from utils.functions import consoleLog, getCommandInfo
 from utils.components import createContainer, createView, buildCommandGuide
 
-COMMAND_INFO = getCommandInfo()
 
 class ErrorsCog(commands.Cog):
     def __init__(self, bot):
@@ -40,8 +38,8 @@ class ErrorsCog(commands.Cog):
         except Exception:
             pass
 
-    @commands.Cog.listener()
-    async def on_command_error(self, ctx, error):
+    async def dispatch_error(self, ctx, error):
+        # shared by prefix (command_error) and slash (application_command_error)
         if isinstance(error, (commands.CommandNotFound, commands.NotOwner)):
             return
         if isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument)):
@@ -49,11 +47,7 @@ class ErrorsCog(commands.Cog):
         if isinstance(error, commands.CommandOnCooldown):
             minutes, seconds = divmod(int(error.retry_after), 60)
             timeText = f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
-            msg = await ctx.reply(f"Too fast. Try again in **{timeText}**")
-            return await msg.delete(delay=5)
-        if isinstance(error, commands.CommandInvokeError):
-            await self.logError(error.original, ctx=ctx)
-            return await ctx.reply(f"{emojis.fail} Something went wrong :( The error has been reported.", delete_after=10)
+            return await ctx.respond(f"Too fast. Try again in **{timeText}**", delete_after=5)
         if isinstance(error, commands.NoPrivateMessage):
             return await ctx.respond(f"{emojis.fail} This command only works in servers.", ephemeral=True)
         if isinstance(error, commands.MissingPermissions):
@@ -61,33 +55,50 @@ class ErrorsCog(commands.Cog):
             return await ctx.respond(f"{emojis.fail} You need `{missing}` to do that.", ephemeral=True)
         if isinstance(error, commands.CheckFailure):
             return consoleLog("BLACKLIST", f"{ctx.author.name} ({ctx.author.id}) tried to run a command")
-        await self.logError(error, ctx=ctx)
-        await ctx.reply(f"{emojis.fail} Something went wrong. The error has been reported.", delete_after=10)
-
-    async def sendUsage(self, ctx):
-        cmdName = ctx.command.name
-        if cmdName in COMMAND_INFO:
-            return await ctx.respond(view=buildCommandGuide(COMMAND_INFO[cmdName], ctx.prefix, ctx.command.aliases))
-        cont = createContainer(color=colors.main)
-        cont.add_item(TextDisplay(f"## {ctx.command.name}"))
-        cont.add_item(TextDisplay(ctx.command.description or "No description provided."))
-        cont.add_separator(divider=True, spacing=SeparatorSpacingSize.small)
-        cd = ctx.command._buckets._cooldown
-        cdText = f"{round(cd.per)}s" if cd else "None"
-        aliases = ", ".join(ctx.command.aliases) if ctx.command.aliases else "None"
-        cont.add_item(TextDisplay(
-            f"**Usage:** `{ctx.prefix}{ctx.command.usage or ctx.command.name}`\n"
-            f"**Cooldown:** `{cdText}`\n"
-            f"**Aliases:** `{aliases}`"
-        ))
-        await ctx.reply(view=createView(cont))
+        await self.logError(getattr(error, "original", error), ctx=ctx)
+        await ctx.respond(f"{emojis.fail} Something went wrong. The error has been reported.", delete_after=10)
 
     @commands.Cog.listener()
-    async def on_error(self, event_method):
-        consoleLog("HANDLER", f"Error in {event_method}", type="error")
-        excType, excValue, excTb = sys.exc_info()
-        if excValue:
-            await self.logError(excValue)
+    async def on_command_error(self, ctx, error):
+        await self.dispatch_error(ctx, error)
+
+    @commands.Cog.listener()
+    async def on_application_command_error(self, ctx, error):
+        await self.dispatch_error(ctx, error)
+
+    @commands.Cog.listener()
+    async def on_view_error(self, error, item, interaction):
+        await self.logError(error)
+        try:
+            msg = f"{emojis.fail} Something went wrong. The error has been reported."
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+        except Exception:
+            pass
+
+    async def sendUsage(self, ctx):
+        cmd = ctx.command
+        if cmd is None:
+            return await ctx.respond(f"{emojis.fail} Invalid usage.", ephemeral=True)
+        commandInfo = getCommandInfo()
+        prefix = getattr(ctx, "prefix", None) or settings.prefix
+        aliases = getattr(cmd, "aliases", None) or []
+        if cmd.name in commandInfo:
+            return await ctx.respond(view=buildCommandGuide(commandInfo[cmd.name], prefix, aliases))
+        cont = createContainer(color=colors.main)
+        cont.add_item(TextDisplay(f"## {cmd.name}"))
+        cont.add_item(TextDisplay(cmd.description or "No description provided."))
+        cont.add_separator(divider=True, spacing=SeparatorSpacingSize.small)
+        cd = getattr(getattr(cmd, "_buckets", None), "_cooldown", None)
+        cdText = f"{round(cd.per)}s" if cd else "None"
+        cont.add_item(TextDisplay(
+            f"**Usage:** `{prefix}{getattr(cmd, 'usage', None) or cmd.name}`\n"
+            f"**Cooldown:** `{cdText}`\n"
+            f"**Aliases:** `{', '.join(aliases) if aliases else 'None'}`"
+        ))
+        await ctx.respond(view=createView(cont))
 
 def setup(bot):
     bot.add_cog(ErrorsCog(bot))

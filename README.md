@@ -47,12 +47,17 @@ DEV_MODE=false
 DEV_BOT_TOKEN=
 DEFAULT_PREFIX=,
 ADMIN_USERS=
-DATABASE_URL=sqlite:///data/osse.db
+DATABASE_URL=sqlite+aiosqlite:///data/osse.sqlite
 SYNC_ENABLED=true
 SYNC_INTERVAL=300
 ```
 
 at minimum set `BOT_TOKEN` and a working `REDIS_URL`. everything else has sane defaults.
+
+in the discord developer portal, enable the **Message Content** and **Server Members**
+privileged intents for your application (both under Bot → Privileged Gateway Intents).
+message content is needed for prefix commands, members for the whoknows commands.
+`DATABASE_URL` is sqlite-only (must start with `sqlite+aiosqlite:///`).
 
 3. start it:
 

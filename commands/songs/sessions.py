@@ -37,48 +37,50 @@ class SessionsCog(commands.Cog):
 
     @bridge.bridge_command(aliases=["sessions", "rs", "studiosession"], description="Get the recording session for a track")
     @bridge.bridge_option(name="song", description="Name of the song to search for", required=True)
+    @commands.cooldown(1, 15, commands.BucketType.user)
     async def session(self, ctx, *, song: str):
+        await ctx.defer()
         if not await self.health_check(ctx):
             return
-        async with ctx.typing():
-            zip_paths, matched_song = await find_best_session_asset(song, kind="zip")
-            edit_paths, _ = await find_best_session_asset(song, kind="edit")
-            if not zip_paths and not edit_paths:
-                return await ctx.respond(f"{emojis.fail} No session found for **{song}**.", ephemeral=True)
-            await db.incrementStat("session_zips_found")
-            zip_path = zip_paths[0] if zip_paths else None
-            edit_path = edit_paths[0] if edit_paths else None
-            buttons = []
-            if zip_path:
-                buttons.append(discord.ui.Button(label="📁 Session Zip", style=discord.ButtonStyle.link, url=downloadUrl(zip_path, plus=True)))
-            if edit_path:
-                buttons.append(SessionEditSendButton(edit_path))
-                buttons.append(discord.ui.Button(label="\u200b", style=discord.ButtonStyle.link, url=downloadUrl(edit_path)))
-            view = build_session_asset_view(
-                title=matched_song.get("name", song) if matched_song else song,
-                all_titles=self.get_all_titles(matched_song),
-                category="Session",
-                path=zip_path or edit_path,
-                song=matched_song,
-                button=buttons[0],
-                extra_buttons=buttons[1:] if len(buttons) > 1 else None,
-                show_file=False,
-            )
-            await ctx.respond(view=view)
+        zip_paths, matched_song = await find_best_session_asset(song, kind="zip")
+        edit_paths, _ = await find_best_session_asset(song, kind="edit")
+        if not zip_paths and not edit_paths:
+            return await ctx.respond(f"{emojis.fail} No session found for **{song}**.", ephemeral=True)
+        await db.incrementStat("session_zips_found")
+        zip_path = zip_paths[0] if zip_paths else None
+        edit_path = edit_paths[0] if edit_paths else None
+        buttons = []
+        if zip_path:
+            buttons.append(discord.ui.Button(label="📁 Session Zip", style=discord.ButtonStyle.link, url=downloadUrl(zip_path, plus=True)))
+        if edit_path:
+            buttons.append(SessionEditSendButton(edit_path))
+            buttons.append(discord.ui.Button(label="\u200b", style=discord.ButtonStyle.link, url=downloadUrl(edit_path)))
+        view = build_session_asset_view(
+            title=matched_song.get("name", song) if matched_song else song,
+            all_titles=self.get_all_titles(matched_song),
+            category="Session",
+            path=zip_path or edit_path,
+            song=matched_song,
+            button=buttons[0],
+            extra_buttons=buttons[1:] if len(buttons) > 1 else None,
+            show_file=False,
+        )
+        await ctx.respond(view=view)
 
     @bridge.bridge_command(aliases=["sz"], description="Get a recording session zip for a track")
     @bridge.bridge_option(name="song", description="Name of the song to search for", required=True)
+    @commands.cooldown(1, 15, commands.BucketType.user)
     async def sessionzip(self, ctx, *, song: str):
+        await ctx.defer()
         if not await self.health_check(ctx):
             return
-        async with ctx.typing():
-            paths, matched_song = await find_best_session_asset(song, kind="zip")
-            if not paths:
-                return await ctx.respond(f"{emojis.fail} No session zip found for **{song}**.", ephemeral=True)
-            await db.incrementStat("session_zips_found")
-            if len(paths) == 1:
-                return await self._respond_session_zip(ctx, paths[0], matched_song)
-            await self._respond_session_zip_disambiguation(ctx, song, paths, matched_song)
+        paths, matched_song = await find_best_session_asset(song, kind="zip")
+        if not paths:
+            return await ctx.respond(f"{emojis.fail} No session zip found for **{song}**.", ephemeral=True)
+        await db.incrementStat("session_zips_found")
+        if len(paths) == 1:
+            return await self._respond_session_zip(ctx, paths[0], matched_song)
+        await self._respond_session_zip_disambiguation(ctx, song, paths, matched_song)
 
     @staticmethod
     def _session_zip_view(path, matched_song, all_titles):
@@ -114,17 +116,18 @@ class SessionsCog(commands.Cog):
 
     @bridge.bridge_command(aliases=["se"], description="Get a session edit file for a track")
     @bridge.bridge_option(name="song", description="Name of the song to search for", required=True)
+    @commands.cooldown(1, 15, commands.BucketType.user)
     async def sessionedit(self, ctx, *, song: str):
+        await ctx.defer()
         if not await self.health_check(ctx):
             return
-        async with ctx.typing():
-            paths, matched_song = await find_best_session_asset(song, kind="edit")
-            if not paths:
-                return await ctx.respond(f"{emojis.fail} No session edit found for **{song}**.", ephemeral=True)
-            await db.incrementStat("session_edits_found")
-            if len(paths) == 1:
-                return await self._respond_session_edit(ctx, paths[0], matched_song)
-            await self._respond_session_edit_disambiguation(ctx, song, paths, matched_song)
+        paths, matched_song = await find_best_session_asset(song, kind="edit")
+        if not paths:
+            return await ctx.respond(f"{emojis.fail} No session edit found for **{song}**.", ephemeral=True)
+        await db.incrementStat("session_edits_found")
+        if len(paths) == 1:
+            return await self._respond_session_edit(ctx, paths[0], matched_song)
+        await self._respond_session_edit_disambiguation(ctx, song, paths, matched_song)
 
     @staticmethod
     def _session_edit_view(path, matched_song, all_titles):

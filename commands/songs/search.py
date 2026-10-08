@@ -6,7 +6,7 @@ from discord.ext import bridge, commands
 from discord import SeparatorSpacingSize, ButtonStyle
 from discord.ui import Button, ActionRow
 
-from commands.songs.groupbuy import GroupbuysCog
+from commands.songs.groupbuy import create_groupbuy_container
 from config import NOT_YOURS, emojis
 from utils.functions import downloadUrl, findClosestMatch, consoleLog, fireAndForget
 from utils.database import db
@@ -44,9 +44,20 @@ class SearchCog(commands.Cog):
             await interaction.followup.send(view=view, ephemeral=True)
 
     async def send_groupbuy(self, interaction, song):
-        gb_cont = await GroupbuysCog.create_groupbuy_container(song_data=song)
-        if not gb_cont:
+        gb = song.get("groupbuy_info") or {}
+        if not isinstance(gb, dict) or not any(gb.values()):
             return await interaction.response.send_message(f"{emojis.fail} No groupbuy information available for this song.", ephemeral=True)
+        era = song.get("era")
+        # ponytail: adapt the song payload into the groupbuy-entry shape create_groupbuy_container expects
+        entry = {
+            "gb": gb,
+            "title": song.get("name", "Unknown"),
+            "alternates": (song.get("track_titles") or [])[1:],
+            "project": era.get("name") if isinstance(era, dict) else era,
+            "blind": gb.get("blind", False),
+            "additional_info": gb.get("notes") or gb.get("additional_info", ""),
+        }
+        gb_cont = await create_groupbuy_container(entry)
         await interaction.response.send_message(view=createView(gb_cont, viewClass=PersistentSongView), ephemeral=True)
 
     async def update_og_buttons(self, message_or_interaction, song, user_id, all_results=None, old_view=None):
@@ -148,66 +159,66 @@ class SearchCog(commands.Cog):
 
     @bridge.bridge_command(name="info", aliases=["search", "track", "song", "songinfo"], description="Search for a track")
     @bridge.bridge_option(name="song", description="Name of the song to search for", required=True)
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def info(self, ctx, *, song: str):
+        await ctx.defer()
         songs_data = cache.getSongs()
         if not songs_data:
             return await ctx.respond(f"{emojis.fail} Song database is empty or unavailable.")
-        async with ctx.typing():
-            query = song.lower()
-            results = findClosestMatch(song, listAll=True)
-            if not results:
-                matches = [
-                    s for s in songs_data
-                    if query in s.get("name", "").lower() or any(query in str(t).lower() for t in s.get("track_titles", []))
-                ]
-                if not matches:
-                    return await ctx.respond(f"{emojis.fail} No results found for `{song}`.")
-                results = {"best": matches[0], "all": matches}
-            best_match = results["best"]
-            all_matches = results["all"]
-            await db.incrementStat("track_searches")
-            if str(best_match.get("category", "")).lower() == "recording_session":
-                non_session = next((s for s in all_matches if str(s.get("category", "")).lower() != "recording_session"), None)
-                if non_session:
-                    best_match = non_session
-            non_session_matches = [m for m in all_matches if str(m.get("category", "")).lower() != "recording_session"]
-            single = None
-            if len(all_matches) == 1:
-                single = best_match
-            elif len(non_session_matches) == 1 and len(all_matches) == 2:
-                single = non_session_matches[0]
-            if single:
-                msg = await ctx.respond(view=self.build_song_view(single, ctx.author.id))
-                sent_message = await self.get_response_msg(ctx, msg)
-                fireAndForget(self.update_og_buttons(sent_message, single, ctx.author.id, all_matches))
-                return
-            multi_cont = createContainer(title="Not Found", description=None, color=None)
-            best_titles = best_match.get("track_titles") or [best_match.get("name", "Unknown")]
-            main_title = best_titles[0] if best_titles else best_match.get("name", "Unknown")
-            alt_titles = best_titles[1:] if len(best_titles) > 1 else []
-            suggestion_text = f"I couldn't find one exact match for `{song}`.\nDid you mean **{main_title}**? "
-            if alt_titles:
-                suggestion_text += f"\n-# ({', '.join(alt_titles[:3])})"
-            multi_cont.add_text(suggestion_text)
-            confirm_button = Button(label=f"Yes, show {main_title}", style=ButtonStyle.gray, custom_id=f"confirm_{best_match.get('public_id', 0)}_{ctx.author.id}")
+        query = song.lower()
+        results = findClosestMatch(song, listAll=True)
+        if not results:
+            matches = [
+                s for s in songs_data
+                if query in s.get("name", "").lower() or any(query in str(t).lower() for t in s.get("track_titles", []))
+            ]
+            if not matches:
+                return await ctx.respond(f"{emojis.fail} No results found for `{song}`.")
+            results = {"best": matches[0], "all": matches}
+        best_match = results["best"]
+        all_matches = results["all"]
+        await db.incrementStat("track_searches")
+        if str(best_match.get("category", "")).lower() == "recording_session":
+            non_session = next((s for s in all_matches if str(s.get("category", "")).lower() != "recording_session"), None)
+            if non_session:
+                best_match = non_session
+        non_session_matches = [m for m in all_matches if str(m.get("category", "")).lower() != "recording_session"]
+        single = None
+        if len(all_matches) == 1:
+            single = best_match
+        elif len(non_session_matches) == 1 and len(all_matches) == 2:
+            single = non_session_matches[0]
+        if single:
+            msg = await ctx.respond(view=self.build_song_view(single, ctx.author.id))
+            sent_message = await self.get_response_msg(ctx, msg)
+            fireAndForget(self.update_og_buttons(sent_message, single, ctx.author.id, all_matches))
+            return
+        multi_cont = createContainer(title="Not Found", description=None, color=None)
+        best_titles = best_match.get("track_titles") or [best_match.get("name", "Unknown")]
+        main_title = best_titles[0] if best_titles else best_match.get("name", "Unknown")
+        alt_titles = best_titles[1:] if len(best_titles) > 1 else []
+        suggestion_text = f"I couldn't find one exact match for `{song}`.\nDid you mean **{main_title}**? "
+        if alt_titles:
+            suggestion_text += f"\n-# ({', '.join(alt_titles[:3])})"
+        multi_cont.add_text(suggestion_text)
+        confirm_button = Button(label=f"Yes, show {main_title}", style=ButtonStyle.gray, custom_id=f"confirm_{best_match.get('public_id', 0)}_{ctx.author.id}")
 
-            view = createView(multi_cont, viewClass=PersistentSongView)
+        view = createView(multi_cont, viewClass=PersistentSongView)
 
-            async def confirm_callback(interaction):
-                if interaction.user.id != ctx.author.id:
-                    return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
-                await interaction.response.defer()
-                view.stop()
-                await self.show_song_and_update_og(interaction, best_match, ctx.author.id, all_matches)
+        async def confirm_callback(interaction):
+            if interaction.user.id != ctx.author.id:
+                return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+            await interaction.response.defer()
+            view.stop()
+            await self.show_song_and_update_og(interaction, best_match, ctx.author.id, all_matches)
 
-            confirm_button.callback = confirm_callback
-            multi_cont.add_item(ActionRow(confirm_button))
-            multi_cont.add_text("## OR")
-            multi_cont.add_text(f"Select from **{len(all_matches)}** matches below")
-            dropdown = createSongDropdown(all_matches, ctx.author.id, placeholder="Choose a song...", callbackFunc=self.make_select_callback(ctx.author.id, all_matches, view))
-            multi_cont.add_item(ActionRow(dropdown))
-            msg = await ctx.respond(view=view)
-            view.message = msg
+        confirm_button.callback = confirm_callback
+        multi_cont.add_item(ActionRow(confirm_button))
+        multi_cont.add_text("## OR")
+        multi_cont.add_text(f"Select from **{len(all_matches)}** matches below")
+        dropdown = createSongDropdown(all_matches, ctx.author.id, placeholder="Choose a song...", callbackFunc=self.make_select_callback(ctx.author.id, all_matches, view))
+        multi_cont.add_item(ActionRow(dropdown))
+        await ctx.respond(view=view)
 
     @bridge.bridge_command(name="random", aliases=["r", "randomsong"], description="Get a random track (flags: -ns, -nu, -nr)")
     async def random(self, ctx, *, flags: str = ""):
@@ -220,31 +231,31 @@ class SearchCog(commands.Cog):
                 "Valid flags: `-ns` (no recording sessions), `-nu` (no unsurfaced), `-nr` (no released).",
                 ephemeral=True,
             )
-        async with ctx.typing():
-            songs = cache.getSongs()
-            if not songs:
-                consoleLog("SEARCH", "no content in songs cache", type="error")
-                return await ctx.respond(f"{emojis.fail} Failed.")
-            if flag_tokens:
-                def matches_flags(s):
-                    cat = re.sub(r"[^a-z0-9]+", "_", str(s.get("category", "")).strip().lower()).strip("_")
-                    if "-ns" in flag_tokens and cat.startswith("recording_session"):
-                        return False
-                    if "-nu" in flag_tokens and cat == "unsurfaced":
-                        return False
-                    if "-nr" in flag_tokens and cat == "released":
-                        return False
-                    return True
-                filtered = [s for s in songs if matches_flags(s)]
-                if not filtered:
-                    return await ctx.respond(f"{emojis.fail} No songs match those filters. Try removing `-ns`, `-nu`, or `-nr`.", ephemeral=True)
-                random_song = random.choice(filtered)
-            else:
-                random_song = random.choice(songs)
-            await db.incrementStat("random_songs_found")
-            msg = await ctx.respond(view=self.build_song_view(random_song, ctx.author.id))
-            sent_message = await self.get_response_msg(ctx, msg)
-            fireAndForget(self.update_og_buttons(sent_message, random_song, ctx.author.id, [random_song]))
+        await ctx.defer()
+        songs = cache.getSongs()
+        if not songs:
+            consoleLog("SEARCH", "no content in songs cache", type="error")
+            return await ctx.respond(f"{emojis.fail} Failed.")
+        if flag_tokens:
+            def matches_flags(s):
+                cat = re.sub(r"[^a-z0-9]+", "_", str(s.get("category", "")).strip().lower()).strip("_")
+                if "-ns" in flag_tokens and cat.startswith("recording_session"):
+                    return False
+                if "-nu" in flag_tokens and cat == "unsurfaced":
+                    return False
+                if "-nr" in flag_tokens and cat == "released":
+                    return False
+                return True
+            filtered = [s for s in songs if matches_flags(s)]
+            if not filtered:
+                return await ctx.respond(f"{emojis.fail} No songs match those filters. Try removing `-ns`, `-nu`, or `-nr`.", ephemeral=True)
+            random_song = random.choice(filtered)
+        else:
+            random_song = random.choice(songs)
+        await db.incrementStat("random_songs_found")
+        msg = await ctx.respond(view=self.build_song_view(random_song, ctx.author.id))
+        sent_message = await self.get_response_msg(ctx, msg)
+        fireAndForget(self.update_og_buttons(sent_message, random_song, ctx.author.id, [random_song]))
 
 
 def setup(bot):

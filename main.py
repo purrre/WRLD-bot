@@ -27,12 +27,15 @@ def get_prefix(bot, message):
 
 class WRLD(bridge.Bot):
     def __init__(self):
+        intents = discord.Intents.default()
+        intents.message_content = True  # prefix commands
+        intents.members = True          # whoknows iterates guild members
         super().__init__(
             command_prefix=get_prefix,
-            intents=discord.Intents.all(),
+            intents=intents,
             max_messages=100,
             cache_app_emojis=True,
-            allowed_mentions=discord.AllowedMentions(everyone=False, roles=True, users=True, replied_user=False),
+            allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=False, replied_user=False),
             help_command=None,
         )
         self.add_check(blacklistCheck(self))
@@ -44,7 +47,8 @@ class WRLD(bridge.Bot):
         for root, _, files in os.walk(folder):
             for filename in files:
                 if filename.endswith(".py") and not filename.startswith("__"):
-                    ext_path = os.path.join(root, filename).replace(os.path.sep, ".")[:-3]
+                    rel = os.path.relpath(os.path.join(root, filename), config.ROOT)
+                    ext_path = rel.replace(os.path.sep, ".")[:-3]
                     try:
                         self.load_extension(ext_path)
                         consoleLog("COGS", f"loaded: {ext_path}")
@@ -57,7 +61,7 @@ class WRLD(bridge.Bot):
 
     async def on_connect(self):
         if not hasattr(self, "_extensions_loaded"):
-            await self.load_all_extensions("commands")
+            await self.load_all_extensions(os.path.join(config.ROOT, "commands"))
             self._extensions_loaded = True
             await self.sync_commands()
 
@@ -96,16 +100,18 @@ async def async_setup():
     await db.loadRuntime()
     await ensureCache()
     if config.settings.sync_enabled:
-        startPoller(config.settings.sync_interval)
+        return startPoller(config.settings.sync_interval)
 
 
 async def main():
     pre_run_checks()
-    await async_setup()
+    poller = await async_setup()
     bot = WRLD()
     try:
         await bot.start(config.settings.token)
     finally:
+        if poller:
+            poller.stop()
         if not bot.is_closed():
             await bot.close()
         await closeSession()

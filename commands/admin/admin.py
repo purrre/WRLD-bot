@@ -32,9 +32,14 @@ class AdminCog(commands.Cog):
     async def w2(self, ctx):
         await ctx.reply("online.")
 
+    def _valid_ext(self, cog_path):
+        return cog_path.startswith("commands.") and ".." not in cog_path
+
     @adminCheck()
     @commands.command(name="reload")
     async def reload(self, ctx, cog_path: str):
+        if cog_path.lower() != "all" and not self._valid_ext(cog_path):
+            return await ctx.respond(f"{emojis.fail} Extension path must be under `commands.`", ephemeral=True)
         try:
             if cog_path.lower() == "all":
                 reloaded = []
@@ -50,6 +55,8 @@ class AdminCog(commands.Cog):
     @adminCheck()
     @commands.command(name="disable")
     async def cd(self, ctx, cog_path: str):
+        if not self._valid_ext(cog_path):
+            return await ctx.respond(f"{emojis.fail} Extension path must be under `commands.`", ephemeral=True)
         try:
             self.bot.unload_extension(cog_path)
             await ctx.respond(f"{emojis.success} Disabled `{cog_path}`")
@@ -59,6 +66,8 @@ class AdminCog(commands.Cog):
     @adminCheck()
     @commands.command(name="enable")
     async def ce(self, ctx, cog_path: str):
+        if not self._valid_ext(cog_path):
+            return await ctx.respond(f"{emojis.fail} Extension path must be under `commands.`", ephemeral=True)
         try:
             self.bot.load_extension(cog_path)
             await ctx.respond(f"{emojis.success} Enabled `{cog_path}`")
@@ -92,6 +101,9 @@ class AdminCog(commands.Cog):
     @adminCheck()
     @commands.command(name="eval")
     async def eval(self, ctx, *, code: str):
+        owner = (await self.bot.application_info()).owner
+        if ctx.author.id != owner.id:
+            return await ctx.respond(f"{emojis.fail} Bot owner only.", ephemeral=True)
         if code.startswith("```") and code.endswith("```"):
             code = code[3:-3]
             if code.startswith("python\n"):
@@ -104,20 +116,21 @@ class AdminCog(commands.Cog):
             "commands": commands, "asyncio": asyncio, "cache": cache,
             "cache_manager": cache_manager, "db": self.bot.db,
         }
+        token = self.bot.http.token or ""
         stdout = io.StringIO()
         try:
             with contextlib.redirect_stdout(stdout):
                 exec("async def _eval_func():\n" + "\n".join(f"    {line}" for line in code.split("\n")), env)
                 result = await env["_eval_func"]()
-            output = stdout.getvalue()
+            output = stdout.getvalue().replace(token, "[redacted]")
             response = ""
             if output:
                 response += f"```\n{output}\n```\n"
             if result is not None:
-                response += f"```py\n{result}\n```"
+                response += f"```py\n{str(result).replace(token, '[redacted]')}\n```"
             await ctx.respond((response or "✅ Executed successfully ```No Output```")[:2000])
         except Exception as e:
-            error = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+            error = "".join(traceback.format_exception(type(e), e, e.__traceback__)).replace(token, "[redacted]")
             await ctx.respond(f"```py\n{error[:1900]}\n```")
 
     @adminCheck()

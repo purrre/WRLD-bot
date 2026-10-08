@@ -15,14 +15,8 @@ class Settings(BaseSettings):
 
     admin_users: str = ""
 
-    database_url: str = "sqlite+aiosqlite:///data/WRLDDB.sqlite"
+    database_url: str = "sqlite+aiosqlite:///data/osse.sqlite"
     redis_url: str = "redis://localhost:6379/0"
-
-    db_host: str = ""
-    db_user: str = ""
-    db_password: str = ""
-    db_name: str = ""
-    db_port: int = 3306
 
     sync_enabled: bool = True
     sync_interval: int = 300

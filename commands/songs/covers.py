@@ -41,38 +41,39 @@ class CoversCog(commands.Cog):
 
     @bridge.bridge_command(name="cover", aliases=["coverart", "ca", "covers"], description="Search and view cover art")
     @bridge.bridge_option(name="query", description="Song or album to search for", required=True)
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def cover(self, ctx, *, query: str):
+        await ctx.defer()
         if not await checkApiHealth(endpoints.covers_health):
             return await ctx.respond(f"{emojis.fail} {apiHost(endpoints.covers)} is down. Please try again later.\n-# If this persists, contact `@purree`", ephemeral=True)
-        async with ctx.typing():
-            cleaned = clean_cover_query(query)
-            image_urls = await search_covers(cleaned)
-            if not image_urls:
-                return await ctx.respond(f"{emojis.fail} No covers found for **{query}**.", ephemeral=True)
+        cleaned = clean_cover_query(query)
+        image_urls = await search_covers(cleaned)
+        if not image_urls:
+            return await ctx.respond(f"{emojis.fail} No covers found for **{query}**.", ephemeral=True)
 
-            def render(page_urls, page, total_pages, user_id, extra_context):
-                main_title = str(query).strip()
-                header_lines = [f"Results for: **{main_title}**"]
-                start_idx = page * COVER_PAGE_SIZE
-                thumbnail_url = page_urls[0] if page_urls else None
-                cont = createContainer(separator=False)
-                if thumbnail_url:
-                    cont.add_item(Section(TextDisplay("\n".join(header_lines)), accessory=Thumbnail(thumbnail_url)))
-                else:
-                    cont.add_text("\n".join(header_lines))
-                cont.add_separator(divider=True)
-                cont.add_text(f"-# Covers {start_idx + 1}-{start_idx + len(page_urls)} of {len(image_urls)} | Page {page + 1}/{total_pages}")
-                cont.add_item(MediaGallery(*[discord.MediaGalleryItem(url) for url in page_urls]))
-                cont.add_separator(divider=True)
-                cont.add_text("-# Want to add missing cover(s)? DM @purree")
-                return cont, PersistentSongView
+        def render(page_urls, page, total_pages, user_id, extra_context):
+            main_title = str(query).strip()
+            header_lines = [f"Results for: **{main_title}**"]
+            start_idx = page * COVER_PAGE_SIZE
+            thumbnail_url = page_urls[0] if page_urls else None
+            cont = createContainer(separator=False)
+            if thumbnail_url:
+                cont.add_item(Section(TextDisplay("\n".join(header_lines)), accessory=Thumbnail(thumbnail_url)))
+            else:
+                cont.add_text("\n".join(header_lines))
+            cont.add_separator(divider=True)
+            cont.add_text(f"-# Covers {start_idx + 1}-{start_idx + len(page_urls)} of {len(image_urls)} | Page {page + 1}/{total_pages}")
+            cont.add_item(MediaGallery(*[discord.MediaGalleryItem(url) for url in page_urls]))
+            cont.add_separator(divider=True)
+            cont.add_text("-# Want to add missing cover(s)? DM @purree")
+            return cont, PersistentSongView
 
-            pagination = createSimplePagination(
-                image_urls, COVER_PAGE_SIZE, ctx.author.id, "cover", render,
-                viewClass=PersistentSongView,
-            )
-            await db.incrementStat("covers_found", amount=len(image_urls))
-            await pagination.show(ctx)
+        pagination = createSimplePagination(
+            image_urls, COVER_PAGE_SIZE, ctx.author.id, "cover", render,
+            viewClass=PersistentSongView,
+        )
+        await db.incrementStat("covers_found", amount=len(image_urls))
+        await pagination.show(ctx)
 
 
 def setup(bot):

@@ -14,6 +14,7 @@ class NowPlayingCog(commands.Cog):
 
     @bridge.bridge_command(name="np", aliases=["nowplaying"], description="View what youre currently listening to on juicewrldapi's apps")
     @bridge.bridge_option(name="user", description="User to check now playing for", required=False)
+    @commands.cooldown(1, 10, commands.BucketType.user)
     async def nowplaying(self, ctx, user: discord.User = None):
         target = user or ctx.author
         await ctx.defer()
@@ -28,8 +29,8 @@ class NowPlayingCog(commands.Cog):
                         )
                     return await ctx.respond(f"{emojis.fail} Failed to fetch now playing data.", ephemeral=True)
                 data = await resp.json()
-        except Exception as e:
-            return await ctx.respond(f"{emojis.fail} Error fetching now playing data: {e}", ephemeral=True)
+        except Exception:
+            return await ctx.respond(f"{emojis.fail} Error fetching now playing data.", ephemeral=True)
         now_playing = data.get("now_playing", {})
         user_data = data.get("user", {})
         if not now_playing:

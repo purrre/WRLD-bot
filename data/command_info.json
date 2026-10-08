@@ -130,5 +130,95 @@
         "description": "Search a tracks instrumental",
         "usage": "instrumental `<song>`",
         "example": "instrumental Be Here"
+    },
+    "surfaced": {
+        "title": "Surfaced Search",
+        "description": "View songs by surface/leak date",
+        "usage": "surfaced [date]",
+        "example": "surfaced 2019-11-16"
+    },
+    "unsurfaced": {
+        "title": "Unsurfaced Songs",
+        "description": "View all unsurfaced songs, optionally filtered by era",
+        "usage": "unsurfaced",
+        "example": "unsurfaced"
+    },
+    "random": {
+        "title": "Random Track",
+        "description": "Get a random track (flags: -ns, -nu, -nr)",
+        "usage": "random [flags]",
+        "example": "random -ns -nu"
+    },
+    "randomlyric": {
+        "title": "Random Lyric",
+        "description": "Get a random lyric line",
+        "usage": "randomlyric",
+        "example": "randomlyric"
+    },
+    "stats": {
+        "title": "Bot Stats",
+        "description": "View bot usage statistics",
+        "usage": "stats",
+        "example": "stats"
+    },
+    "np": {
+        "title": "Now Playing",
+        "description": "View what a user is currently listening to on juicewrldapi apps",
+        "usage": "np [user]",
+        "example": "np"
+    },
+    "lastfm": {
+        "title": "Last.fm",
+        "description": "Last.fm integration: login, nowplaying, whoknows, top lists, latest",
+        "usage": "lastfm <subcommand>",
+        "example": "lastfm whoknows"
+    },
+    "comp": {
+        "title": "Compilation Files",
+        "description": "Get a link to the compilation files",
+        "usage": "comp",
+        "example": "comp"
+    },
+    "ping": {
+        "title": "Ping",
+        "description": "Pings juicewrldapi to check the status",
+        "usage": "ping",
+        "example": "ping"
+    },
+    "jwa": {
+        "title": "JWA Status",
+        "description": "Pings juicewrldapi (classic embed layout)",
+        "usage": "jwa",
+        "example": "jwa"
+    },
+    "apistats": {
+        "title": "API Stats",
+        "description": "Shows basic juicewrldapi statistics",
+        "usage": "apistats",
+        "example": "apistats"
+    },
+    "eras": {
+        "title": "Eras",
+        "description": "List all eras in order",
+        "usage": "eras",
+        "example": "eras"
+    },
+    "albums": {
+        "title": "Albums",
+        "description": "List all albums in order",
+        "usage": "albums",
+        "example": "albums"
+    },
+    "about": {
+        "title": "About",
+        "description": "Get information about WRLD",
+        "usage": "about",
+        "example": "about"
+    },
+    "help": {
+        "title": "Help",
+        "description": "Display help information",
+        "usage": "help [command]",
+        "example": "help leak"
     }
 }

@@ -107,6 +107,7 @@ class LyricsCog(commands.Cog):
 
     @bridge.bridge_command(name="lyrics", aliases=["ly"], description="Get lyrics for a song")
     @bridge.bridge_option(name="song", description="Song name to get lyrics for", required=True)
+    @commands.cooldown(1, 8, commands.BucketType.user)
     async def lyrics(self, ctx, *, song: str):
         matches = song_matches(song, "info")
         if not matches:
@@ -128,6 +129,7 @@ class LyricsCog(commands.Cog):
         await ctx.respond(view=view)
 
     @bridge.bridge_command(name="randomlyric", aliases=["lyric", "rl"], description="Get a random lyric line")
+    @commands.cooldown(1, 5, commands.BucketType.user)
     async def randomlyric(self, ctx):
         await ctx.defer()
 
@@ -155,53 +157,54 @@ class LyricsCog(commands.Cog):
 
     @bridge.bridge_command(aliases=["searchlyrics", "lyricsearch", "sl", "searchlyric", "ls"], description="Search for songs by lyrics")
     @bridge.bridge_option(name="lyrics", description="Lyrics text to search for", required=True)
+    @commands.cooldown(1, 15, commands.BucketType.user)
     async def lyricssearch(self, ctx, *, lyrics: str):
-        async with ctx.typing():
-            data = cache.getLyrics()
-            if not data:
-                return await ctx.respond(view=createView(createContainer(title="Lyrics Search", description=f"{emojis.fail} Lyrics cache is not available.")))
-            query = lyrics.lower().strip().replace("'", "").replace("'", "")
-            if not [w for w in query.split() if len(w) >= 2]:
-                return await ctx.respond(f"{emojis.fail} Please provide a longer lyrics query.", ephemeral=True)
-            songs = cache.getSongs() or []
-            matches = []
-            for pid, entry in data.items():
-                if not isinstance(entry, dict):
-                    continue
-                text = str(entry.get("lyrics", "")).lower().replace("'", "").replace("'", "")
-                if query in text:
-                    song = next((s for s in songs if str(s.get("public_id")) == str(pid)), None)
-                    if song:
-                        matches.append((song, 100))
-                    continue
-                best = max((fuzz.WRatio(query, line.strip()) for line in text.split("\n") if len(line.strip()) >= len(query) // 2), default=0)
-                if best >= 88:
-                    song = next((s for s in songs if str(s.get("public_id")) == str(pid)), None)
-                    if song:
-                        matches.append((song, best))
-            matches.sort(key=lambda x: x[1], reverse=True)
-            matches = [s for s, _ in matches]
-            count = self.count()
-            if not matches:
-                return await ctx.respond(f"{emojis.fail} No songs found with lyrics matching **{lyrics}**.\n-# The database currently contains **{count}** songs with lyrics.", ephemeral=True)
-            if len(matches) == 1:
-                song = matches[0]
-                cont = createContainer(title="Lyrics Search", description=f"Found **{self.name(song)}** with matching lyrics.\n\n-# The database currently contains **{count}** songs with lyrics.")
-                view = createView(cont, viewClass=PersistentSongView)
-                view.add_item(ActionRow(self.lyrics_button(song)))
-                return await ctx.respond(view=view)
-            cont = createContainer(title="Lyrics Search", description=f"Found **{len(matches)}** songs with matching lyrics.\n\n-# The database currently contains **{count}** songs with lyrics.")
+        await ctx.defer()
+        data = cache.getLyrics()
+        if not data:
+            return await ctx.respond(view=createView(createContainer(title="Lyrics Search", description=f"{emojis.fail} Lyrics cache is not available.")))
+        query = lyrics.lower().strip().replace("'", "").replace("'", "")
+        if not [w for w in query.split() if len(w) >= 2]:
+            return await ctx.respond(f"{emojis.fail} Please provide a longer lyrics query.", ephemeral=True)
+        songs = cache.getSongs() or []
+        matches = []
+        for pid, entry in data.items():
+            if not isinstance(entry, dict):
+                continue
+            text = str(entry.get("lyrics", "")).lower().replace("'", "").replace("'", "")
+            if query in text:
+                song = next((s for s in songs if str(s.get("public_id")) == str(pid)), None)
+                if song:
+                    matches.append((song, 100))
+                continue
+            best = max((fuzz.WRatio(query, line.strip()) for line in text.split("\n") if len(line.strip()) >= len(query) // 2), default=0)
+            if best >= 88:
+                song = next((s for s in songs if str(s.get("public_id")) == str(pid)), None)
+                if song:
+                    matches.append((song, best))
+        matches.sort(key=lambda x: x[1], reverse=True)
+        matches = [s for s, _ in matches]
+        count = self.count()
+        if not matches:
+            return await ctx.respond(f"{emojis.fail} No songs found with lyrics matching **{lyrics}**.\n-# The database currently contains **{count}** songs with lyrics.", ephemeral=True)
+        if len(matches) == 1:
+            song = matches[0]
+            cont = createContainer(title="Lyrics Search", description=f"Found **{self.name(song)}** with matching lyrics.\n\n-# The database currently contains **{count}** songs with lyrics.")
             view = createView(cont, viewClass=PersistentSongView)
+            view.add_item(ActionRow(self.lyrics_button(song)))
+            return await ctx.respond(view=view)
+        cont = createContainer(title="Lyrics Search", description=f"Found **{len(matches)}** songs with matching lyrics.\n\n-# The database currently contains **{count}** songs with lyrics.")
+        view = createView(cont, viewClass=PersistentSongView)
 
-            async def on_select(interaction, song_id):
-                if interaction.user.id != ctx.author.id:
-                    return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
-                selected = next((s for s in matches if str(s.get("public_id")) == str(song_id)), None)
-                if selected:
-                    await self.display_lyrics(interaction, selected)
+        async def on_select(interaction, song_id):
+            if interaction.user.id != ctx.author.id:
+                return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+            selected = next((s for s in matches if str(s.get("public_id")) == str(song_id)), None)
+            if selected:
+                await self.display_lyrics(interaction, selected)
 
-            view.add_item(ActionRow(createSongDropdown(matches, ctx.author.id, placeholder="Choose a song to view lyrics...", callbackFunc=on_select)))
-            await ctx.respond(view=view)
+        view.add_item(ActionRow(createSongDropdown(matches, ctx.author.id, placeholder="Choose a song to view lyrics...", callbackFunc=on_select)))
+        await ctx.respond(view=view)
 
 
 def setup(bot):
