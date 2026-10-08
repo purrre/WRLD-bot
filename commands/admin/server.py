@@ -114,7 +114,7 @@ class ServerCog(commands.Cog):
         await ctx.respond(f"{emojis.success} Channel **{action}**.\n**Reason:** {reason}\n-# {action.capitalize()} by {ctx.author.mention}")
 
     @commands.guild_only()
-    @commands.has_permissions(manage_channels=True)
+    @commands.has_permissions(administrator=True)
     @commands.command(name="nuke", description="Nuke and recreate this channel", aliases=["cnuke"])
     @commands.cooldown(1, 30, commands.BucketType.guild)
     async def nuke(self, ctx, *, message: str = None):
