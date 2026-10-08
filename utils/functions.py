@@ -430,6 +430,16 @@ def disabledCommandsCheck(bot):
         return True
     return predicate
 
+_orig_context_reply = commands.Context.reply
+
+async def safeReply(self, *args, **kwargs):
+    try:
+        return await _orig_context_reply(self, *args, **kwargs)
+    except discord.HTTPException as e:
+        if e.code == 50035:
+            return await self.send(*args, **kwargs)
+        raise
+
 # ==============================================================================
 # android gateway identify patch
 # ==============================================================================

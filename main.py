@@ -10,13 +10,14 @@ from discord.gateway import DiscordWebSocket
 
 import config
 from utils.functions import (
-    consoleLog, closeSession, mobileIdentify, blacklistCheck, disabledCommandsCheck,
+    consoleLog, closeSession, mobileIdentify, safeReply, blacklistCheck, disabledCommandsCheck,
     setRandomLyricStatus,
 )
 from utils.database import db
 from utils.cache import ensureCache, startPoller, closeRedis
 
 DiscordWebSocket.identify = mobileIdentify
+commands.Context.reply = safeReply
 
 def get_prefix(bot, message):
     if message.guild is None:

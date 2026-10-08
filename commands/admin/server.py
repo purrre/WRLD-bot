@@ -71,6 +71,59 @@ class ServerCog(commands.Cog):
         embed.set_footer(text="Use 'enablecmd <command>' to re-enable a command")
         await ctx.respond(embed=embed)
 
+    @commands.guild_only()
+    @commands.has_permissions(manage_channels=True)
+    @commands.command(name="purge", aliases=["clear"], description="Mass delete messages")
+    @commands.cooldown(1, 5, commands.BucketType.guild)
+    async def purge(self, ctx, amount: int):
+        if amount < 1 or amount > 100:
+            return await ctx.respond(f"{emojis.fail} Amount must be between 1 and 100.", ephemeral=True)
+        deleted = await ctx.channel.purge(limit=amount + 1)
+        await ctx.respond(f"{emojis.success} Purged {len(deleted) - 1} messages.", delete_after=6)
+
+    @commands.guild_only()
+    @commands.has_permissions(manage_channels=True)
+    @commands.command(name="slowmode", aliases=["sm"], description="Set the channel slowmode delay")
+    @commands.cooldown(1, 5, commands.BucketType.guild)
+    async def slowmode(self, ctx, seconds: int):
+        if seconds < 0 or seconds > 21600:
+            return await ctx.respond(f"{emojis.fail} Slowmode must be between 0 and 21600 seconds.", ephemeral=True)
+        try:
+            await ctx.channel.edit(slowmode_delay=seconds)
+        except Exception as e:
+            return await ctx.respond(f"{emojis.fail} Failed to set slowmode:\n```py\n{e}\n```")
+        await ctx.respond(f"{emojis.success} Set channel slowmode to **{seconds} seconds**.")
+
+    @commands.guild_only()
+    @commands.has_permissions(manage_channels=True)
+    @commands.command(name="lock", aliases=["unlock"], description="Lock or unlock the current channel")
+    @commands.cooldown(1, 5, commands.BucketType.guild)
+    async def lock(self, ctx, *, reason: str = "No reason provided."):
+        channel = ctx.channel
+        overwrite = channel.overwrites_for(ctx.guild.default_role)
+        locked = overwrite.send_messages is False
+        overwrite.send_messages = None if locked else False
+        try:
+            await channel.set_permissions(ctx.guild.default_role, overwrite=overwrite, reason=reason)
+        except Exception as e:
+            return await ctx.respond(f"{emojis.fail} Failed to toggle lock:\n```py\n{e}\n```")
+        action = "unlocked" if locked else "locked"
+        await ctx.respond(f"{emojis.success} Channel **{action}**.\n**Reason:** {reason}\n-# {action.capitalize()} by {ctx.author.mention}")
+
+    @commands.guild_only()
+    @commands.has_permissions(manage_channels=True)
+    @commands.command(name="nuke", description="Nuke and recreate this channel", aliases=["cnuke"])
+    @commands.cooldown(1, 30, commands.BucketType.guild)
+    async def nuke(self, ctx, *, message: str = None):
+        old_channel = ctx.channel
+        try:
+            new_channel = await old_channel.clone(reason=f"Nuked by {ctx.author}")
+            await new_channel.edit(position=old_channel.position)
+            await old_channel.delete(reason=f"Nuked by {ctx.author}")
+        except Exception as e:
+            return await ctx.respond(f"{emojis.fail} Failed to nuke channel:\n```py\n{e}\n```")
+        await new_channel.send(message or f"## FIRST\n-# channel nuked by {ctx.author.mention}")
+
 
 def setup(bot):
     bot.add_cog(ServerCog(bot))
