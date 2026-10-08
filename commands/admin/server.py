@@ -1,7 +1,10 @@
 import discord
+from discord import ButtonStyle
 from discord.ext import commands
+from discord.ui import ActionRow, Button
 
-from config import settings, emojis
+from config import settings, emojis, colors, NOT_YOURS
+from utils.components import createContainer, createView
 
 class ServerCog(commands.Cog):
     def __init__(self, bot):
@@ -116,13 +119,39 @@ class ServerCog(commands.Cog):
     @commands.cooldown(1, 30, commands.BucketType.guild)
     async def nuke(self, ctx, *, message: str = None):
         old_channel = ctx.channel
-        try:
-            new_channel = await old_channel.clone(reason=f"Nuked by {ctx.author}")
-            await new_channel.edit(position=old_channel.position)
-            await old_channel.delete(reason=f"Nuked by {ctx.author}")
-        except Exception as e:
-            return await ctx.respond(f"{emojis.fail} Failed to nuke channel:\n```py\n{e}\n```")
-        await new_channel.send(message or f"## FIRST\n-# channel nuked by {ctx.author.mention}")
+        cont = createContainer(
+            title="Confirm Nuke",
+            description=f"Are you sure you want to nuke {old_channel.mention}?\nThis effectively clears message history and cannot be undone.",
+            heading="##",
+            color=colors.red,
+        )
+        row = ActionRow()
+        confirm_btn = Button(label="Confirm", style=ButtonStyle.red)
+        cancel_btn = Button(label="Cancel", style=ButtonStyle.gray)
+
+        async def confirm_callback(interaction):
+            if interaction.user.id != ctx.author.id:
+                return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+            await interaction.response.defer()
+            try:
+                new_channel = await old_channel.clone(reason=f"Nuked by {ctx.author}")
+                await new_channel.edit(position=old_channel.position)
+                await old_channel.delete(reason=f"Nuked by {ctx.author}")
+            except Exception as e:
+                return await ctx.respond(f"{emojis.fail} Failed to nuke channel:\n```py\n{e}\n```")
+            await new_channel.send(message or f"## FIRST\n-# channel nuked by {ctx.author.mention}")
+
+        async def cancel_callback(interaction):
+            if interaction.user.id != ctx.author.id:
+                return await interaction.response.send_message(NOT_YOURS, ephemeral=True)
+            new_cont = createContainer(title="Cancelled", description="The channel was not nuked.", heading="##")
+            await interaction.response.edit_message(view=createView(new_cont))
+
+        confirm_btn.callback = confirm_callback
+        cancel_btn.callback = cancel_callback
+        row.add_item(confirm_btn)
+        row.add_item(cancel_btn)
+        await ctx.respond(view=createView(cont, row))
 
 
 def setup(bot):
