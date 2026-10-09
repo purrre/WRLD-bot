@@ -20,8 +20,6 @@ def getEraEmoji(song):
         return None
     return emojiMap.get(era_key.strip()) or None
 
-# ponytail: disable_on_timeout is built into BaseView.on_timeout — it resolves the
-# message via view.message/parent automatically and disables all items on timeout.
 class TimeoutView(DesignerView):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("timeout", 60)

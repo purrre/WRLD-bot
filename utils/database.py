@@ -47,6 +47,17 @@ class LastFmUser(Base):
     username = Column(String(64), nullable=False)
     hidden = Column(Integer, server_default="0", nullable=False)
 
+REACTION_KINDS_DB = ("sobs", "skulls", "flames", "hearts", "clowns")
+
+class ReactionStats(Base):
+    __tablename__ = "reaction_stats"
+    user_id = Column(String(25), primary_key=True)
+    reputation = Column(Integer, server_default="0", nullable=False)
+    for _k in REACTION_KINDS_DB:
+        locals()[f"{_k}_rx"] = Column(Integer, server_default="0", nullable=False)
+        locals()[f"{_k}_tx"] = Column(Integer, server_default="0", nullable=False)
+    del _k
+
 statColumns = (
     "commands_run", "slash_commands_run", "track_searches", "random_songs_found",
     "lyrics_searched", "random_lyrics_found", "leaks_found", "session_zips_found",
@@ -276,6 +287,57 @@ class Database:
         async with self.session() as s:
             rows = (await s.execute(select(LastFmUser))).scalars()
             return {row.user_id: (row.username, bool(row.hidden)) for row in rows}
+
+    # ---- reactions ----
+    async def recordReaction(self, authorId, reactorId, kind, repDelta):
+        if kind not in REACTION_KINDS_DB:
+            raise ValueError(f"unknown reaction kind: {kind!r}")
+        t = ReactionStats.__table__
+        rxCol = f"{kind}_rx"
+        txCol = f"{kind}_tx"
+        async with self.session() as s:
+            stmt = sqlite_insert(t).values(user_id=str(authorId), reputation=repDelta, **{rxCol: 1})
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["user_id"],
+                set_={rxCol: getattr(t.c, rxCol) + 1, "reputation": t.c.reputation + repDelta},
+            )
+            await s.execute(stmt)
+            stmt = sqlite_insert(t).values(user_id=str(reactorId), **{txCol: 1})
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["user_id"],
+                set_={txCol: getattr(t.c, txCol) + 1},
+            )
+            await s.execute(stmt)
+            await s.commit()
+
+    async def getReactionStats(self, userId):
+        async with self.session() as s:
+            row = (await s.execute(select(ReactionStats).where(ReactionStats.user_id == str(userId)))).scalar_one_or_none()
+            if row is None:
+                return {}
+            cols = ["reputation"] + [f"{k}_{d}" for k in REACTION_KINDS_DB for d in ("rx", "tx")]
+            return {c: getattr(row, c, 0) or 0 for c in cols}
+
+    async def reactionLeaderboard(self, kind, limit=10, bottom=False):
+        col = getattr(ReactionStats, f"{kind}_rx")
+        async with self.session() as s:
+            rows = (await s.execute(
+                select(ReactionStats.user_id, col)
+                .where(col != 0)
+                .order_by(col.asc() if bottom else col.desc())
+                .limit(limit)
+            )).all()
+            return [(uid, val) for uid, val in rows]
+
+    async def reputationLeaderboard(self, limit=10, bottom=False):
+        async with self.session() as s:
+            rows = (await s.execute(
+                select(ReactionStats.user_id, ReactionStats.reputation)
+                .where(ReactionStats.reputation != 0)
+                .order_by(ReactionStats.reputation.asc() if bottom else ReactionStats.reputation.desc())
+                .limit(limit)
+            )).all()
+            return [(uid, val) for uid, val in rows]
 
     # ---- generic table access ----
     def tables(self):

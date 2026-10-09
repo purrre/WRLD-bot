@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     default_prefix: str = ","
 
     admin_users: str = ""
+    reaction_guilds: str = ""
 
     database_url: str = "sqlite+aiosqlite:///data/osse.sqlite"
     redis_url: str = "redis://localhost:6379/0"
@@ -38,6 +39,10 @@ class Settings(BaseSettings):
     @property
     def admin_ids(self):
         return {part.strip() for part in self.admin_users.split(",") if part.strip()}
+
+    @property
+    def reaction_guild_ids(self):
+        return {int(part.strip()) for part in self.reaction_guilds.split(",") if part.strip()}
 
 
 settings = Settings()

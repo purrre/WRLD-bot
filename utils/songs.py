@@ -7,7 +7,7 @@ import urllib.parse
 import aiohttp
 import discord
 from discord import ButtonStyle, SeparatorSpacingSize
-from discord.ui import Section, TextDisplay, Button, ActionRow, Thumbnail
+from discord.ui import Section, TextDisplay, Button, ActionRow, Thumbnail, MediaGallery
 
 from config import NOT_YOURS, colors, emojis, endpoints
 from utils.functions import (
@@ -16,7 +16,7 @@ from utils.functions import (
     getSession, consoleLog, tokenizeText,
 )
 from utils.components import (
-    notesLengthThreshold, PersistentSongView, createContainer, createView, createSongDropdown, loading,
+    notesLengthThreshold, PersistentSongView, createContainer, createView, createSongDropdown,
 )
 from utils.database import db
 
@@ -888,29 +888,22 @@ class SnipButton(discord.ui.Button):
     async def callback(self, interaction):
         await interaction.response.defer(ephemeral=True, invisible=False)
         if not self.stream_urls:
-            urls, found_ext = await fetch_snippet_urls(self.song)
-            if urls:
-                actual_ext = found_ext or ".mp4"
-                self.stream_urls = [(url, actual_ext) for url in urls]
+            urls, _ = await fetch_snippet_urls(self.song)
+            self.stream_urls = urls
         if not self.stream_urls:
             await interaction.followup.send(
                 embed=discord.Embed(description="Couldn't find any snippets :(", color=colors.main),
                 ephemeral=True,
             )
             return
-        suffix = " This may take a while" if len(self.stream_urls) > 5 else ""
-        await interaction.followup.send(
-            embed=await loading("snippet", x=f"({len(self.stream_urls)} found).{suffix}"),
-            ephemeral=True,
+        shown = self.stream_urls[:10]
+        cont = createContainer(
+            title=self.song.get("name", "Snippets"),
+            description=f"-# {len(shown)} snippet{'s' if len(shown) != 1 else ''}",
         )
-        session = await getSession()
-        for index, (url, ext) in enumerate(self.stream_urls, start=1):
-            filename = f"{self.song.get('name', 'track')}{ext}"
-            sent = await send_file(interaction, url, filename, f"Snippet {index}", session=session)
-            if sent:
-                await db.incrementStat("snippets_sent")
-            await asyncio.sleep(0.4)
-        self.stream_urls = []
+        cont.add_item(MediaGallery(*[discord.MediaGalleryItem(url) for url in shown]))
+        await interaction.followup.send(view=createView(cont), ephemeral=True)
+        await db.incrementStat("snippets_sent", amount=len(shown))
 
 
 class InstButton(discord.ui.Button):
