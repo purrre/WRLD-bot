@@ -4,13 +4,14 @@ import urllib.parse
 
 from discord.ext import bridge, commands
 
-from config import emojis, endpoints
+from config import emojis, endpoints, settings
 from utils.functions import fetchJson, checkApiHealth, apiHost
 from utils.database import db
 from utils.components import createContainer, createView
 from utils.songs import (
     song_matches, build_song_view, build_not_found_view, fetch_og_buttons, fetch_og_files, not_found_text,
     parse_instrumentals, fetch_instrumental_urls, fetch_instrumental_urls_by_name, send_file,
+    exact_unsurfaced_match,
 )
 
 
@@ -30,6 +31,17 @@ class FilesCog(commands.Cog):
             return bool(song.get("file_names") and str(song.get("file_names")).strip().lower() not in ("none", "n/a", "", "null"))
         return True  # snippets: no cheap check, keep all
 
+    async def no_results(self, ctx, mode, query):
+        if mode == "leak":
+            hit = exact_unsurfaced_match(query)
+            if hit:
+                prefix = getattr(ctx, "clean_prefix", None) or getattr(ctx, "prefix", None) or settings.prefix
+                return await ctx.respond(
+                    f"{emojis.info} **{hit.get('name', query)}** has not surfaced.\n-# Use `{prefix}info <song>` for details on it.",
+                    ephemeral=True,
+                )
+        return await ctx.respond(not_found_text(mode, query), ephemeral=True)
+
     async def send_song_result(self, ctx, query, mode):
         await ctx.defer()
         if not await checkApiHealth(endpoints.jwa):
@@ -39,7 +51,7 @@ class FilesCog(commands.Cog):
             )
         matches = song_matches(query, mode)
         if not matches:
-            return await ctx.respond(not_found_text(mode, query), ephemeral=True)
+            return await self.no_results(ctx, mode, query)
         # filter to matches that actually have content for this mode
         available = [m for m in matches if self.has_content(m, mode)]
         if mode == "ogfile":
@@ -47,7 +59,7 @@ class FilesCog(commands.Cog):
             checks = await asyncio.gather(*[fetch_og_files(m) for m in available])
             available = [m for m, paths in zip(available, checks) if paths]
         if not available:
-            return await ctx.respond(not_found_text(mode, query), ephemeral=True)
+            return await self.no_results(ctx, mode, query)
         if mode == "leak":
             await db.incrementStat("leaks_found")
 

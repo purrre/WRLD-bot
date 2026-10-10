@@ -154,6 +154,25 @@ def match_song_for_cover(query):
     return fallback[0] if fallback else None
 
 
+def exact_unsurfaced_match(query):
+    normalized = normalizeText(stripVersionMarkers(query))
+    query_key = getTitleKey(query)
+    if not normalized:
+        return None
+    for song in cache_songs():
+        if str(song.get("category", "")).lower() != "unsurfaced":
+            continue
+        titles = [song.get("name", "")] + list(song.get("track_titles") or [])
+        for title in titles:
+            title_norm = normalizeText(stripVersionMarkers(str(title)))
+            if title_norm and title_norm == normalized:
+                return song
+            title_key = getTitleKey(str(title))
+            if query_key and title_key and title_key == query_key:
+                return song
+    return None
+
+
 def cache_songs():
     from utils.cache import cache
     return cache.getSongs() or []
