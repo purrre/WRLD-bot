@@ -187,7 +187,7 @@ class ServerCog(commands.Cog):
                 return
         else:
             msg = message
-        if getattr(msg.flags, "voice", False):
+        if getattr(msg.flags, "is_voice_message", False):
             return
         for attachment in msg.attachments:
             is_audio = (
