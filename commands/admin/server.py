@@ -146,11 +146,11 @@ class ServerCog(commands.Cog):
     @commands.group(name="antiaudio", aliases=["antimp3", "antiwav"], invoke_without_command=True, description="Manage audio attachment blocking")
     @commands.cooldown(1, 5, commands.BucketType.guild)
     async def antiaudio(self, ctx):
-        if not ctx.author.guild_permissions.administrator:
-            return await ctx.message.add_reaction(emojis.fail)
         enabled = await self.bot.db.isAntiaudioEnabled(ctx.guild.id)
-        prefix = getattr(ctx, "clean_prefix", None) or getattr(ctx, "prefix", None) or settings.prefix
         state = "enabled" if enabled else "disabled"
+        if not ctx.author.guild_permissions.administrator:
+            return await ctx.respond(f"{emojis.info} Anti-audio is **{state}** in this server.", ephemeral=True)
+        prefix = getattr(ctx, "clean_prefix", None) or getattr(ctx, "prefix", None) or settings.prefix
         await ctx.respond(f"{emojis.info} Anti-audio is **{state}** in this server.\n-# `{prefix}antiaudio enable|disable`")
 
     @antiaudio.command(name="enable", aliases=["on"], description="Enable audio attachment blocking")
