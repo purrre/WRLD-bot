@@ -59,6 +59,5 @@ class ErasCog(commands.Cog):
         )
         await pagination.show(ctx, 0)
 
-
 def setup(bot):
     bot.add_cog(ErasCog(bot))

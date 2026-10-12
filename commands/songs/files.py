@@ -14,14 +14,12 @@ from utils.songs import (
     exact_unsurfaced_match,
 )
 
-
 class FilesCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
     @staticmethod
     def has_content(song, mode):
-        """Cheap sync check: does this song plausibly have content for this mode?"""
         if mode == "leak":
             return bool(song.get("path"))
         if mode == "instrumental":
@@ -29,7 +27,7 @@ class FilesCog(commands.Cog):
         if mode == "ogfile":
             # ponytail: file_names presence is a cheap proxy — fetch_og_files returns [] without it
             return bool(song.get("file_names") and str(song.get("file_names")).strip().lower() not in ("none", "n/a", "", "null"))
-        return True  # snippets: no cheap check, keep all
+        return True
 
     async def no_results(self, ctx, mode, query):
         if mode == "leak":
@@ -52,10 +50,8 @@ class FilesCog(commands.Cog):
         matches = song_matches(query, mode)
         if not matches:
             return await self.no_results(ctx, mode, query)
-        # filter to matches that actually have content for this mode
         available = [m for m in matches if self.has_content(m, mode)]
         if mode == "ogfile":
-            # has_content only checks file_names presence (cheap proxy); verify via real browse
             checks = await asyncio.gather(*[fetch_og_files(m) for m in available])
             available = [m for m, paths in zip(available, checks) if paths]
         if not available:
@@ -145,27 +141,23 @@ class FilesCog(commands.Cog):
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def comp(self, ctx):
         await ctx.defer()
-        data = await fetchJson(endpoints.media_status, timeout=10)
-        if data is None:
+        data = await fetchJson(f"{endpoints.jwa}/juicewrld/cdn/master-hashes/signature/", timeout=10)
+        if not isinstance(data, dict):
             return await ctx.respond(
-                f"{emojis.fail} {apiHost(endpoints.media)} is down. Please try again later.\n-# If this persists, contact `@juicewrldapi`",
+                f"{emojis.fail} {apiHost(endpoints.jwa)} is down. Please try again later.\n-# If this persists, contact `@juicewrldapi`",
                 ephemeral=True,
             )
         link_line = f"[Click here to visit the comp]({endpoints.files})"
-        if isinstance(data, dict):
-            total_files = data.get("total_files", "N/A")
-            total_size_mb = data.get("total_size_mb", "N/A")
-            size_display = f"{total_size_mb / 1024:.2f} GB" if isinstance(total_size_mb, (int, float)) else str(total_size_mb)
-            try:
-                files_display = f"{total_files:,}"
-            except (ValueError, TypeError):
-                files_display = str(total_files)
-            description = f"**Total Files:** {files_display}\n**Total Size:** {size_display}\n\n{link_line}"
-        else:
-            description = link_line
+        total_files = data.get("total_files", "N/A")
+        total_bytes = data.get("total_bytes")
+        size_display = f"{total_bytes / 1024**3:.2f} GB" if isinstance(total_bytes, (int, float)) else "N/A"
+        try:
+            files_display = f"{total_files:,}"
+        except (ValueError, TypeError):
+            files_display = str(total_files)
+        description = f"**Total Files:** {files_display}\n**Total Size:** {size_display}\n\n{link_line}"
         cont = createContainer(title="Juice WRLD Comp", description=description)
         await ctx.respond(view=createView(cont))
-
 
 def setup(bot):
     bot.add_cog(FilesCog(bot))

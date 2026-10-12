@@ -8,7 +8,6 @@ from config import colors, emojis, settings
 from utils.functions import consoleLog, getCommandInfo
 from utils.components import createContainer, createView, buildCommandGuide
 
-
 class ErrorsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -39,7 +38,6 @@ class ErrorsCog(commands.Cog):
             pass
 
     async def dispatch_error(self, ctx, error):
-        # shared by prefix (command_error) and slash (application_command_error)
         if isinstance(error, (commands.CommandNotFound, commands.NotOwner)):
             return
         if isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument)):

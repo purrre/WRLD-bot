@@ -30,7 +30,6 @@ PERIOD_DISPLAY = {
     "overall": "lifetime",
 }
 
-
 class LastFMCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -47,7 +46,6 @@ class LastFMCog(commands.Cog):
         return {}
 
     async def resolve_user(self, ctx, username):
-        """Returns (lastfm_username, display_name, hidden) or None if not logged in."""
         if username is not None:
             return username, username, False
         udata = await db.getLastfm(ctx.author.id)
@@ -57,7 +55,6 @@ class LastFMCog(commands.Cog):
 
     @staticmethod
     def safe_name(lastfm_user, display_name, hidden):
-        """Display name shown to the user when hidden, else the lastfm username."""
         return display_name if hidden else lastfm_user
 
     @bridge.bridge_group(name="lastfm", aliases=["lf", "fm"], invoke_without_command=True)
@@ -126,7 +123,6 @@ class LastFMCog(commands.Cog):
         total_plays = str(responses[1].get("user", {}).get("playcount", "0"))
         album_info = responses[2] if album else None
         # ponytail: recenttracks album/image are empty for untagged scrobbles — fall back
-        # to track.getinfo's album data, then fetch its play count (extra call, rare path)
         if not album:
             album = str(track_info.get("album", {}).get("title", ""))
             if album:
@@ -166,8 +162,6 @@ class LastFMCog(commands.Cog):
             await msg.add_reaction(emojis.thumbsdown)
         except discord.HTTPException:
             pass
-
-    # --- whoknows ---
 
     async def _whoknows(self, ctx, mode, query=None):
         if not ctx.guild:
@@ -279,8 +273,6 @@ class LastFMCog(commands.Cog):
     async def whoknows_track(self, ctx, *, query: str = None):
         await self._whoknows(ctx, "track", query)
 
-    # --- top ---
-
     async def _top(self, ctx, item_type, period, username):
         await ctx.defer()
         resolved = await self.resolve_user(ctx, username)
@@ -334,8 +326,6 @@ class LastFMCog(commands.Cog):
     async def topalbums(self, ctx, username: str = None, period: str = "7day"):
         await self._top(ctx, "albums", period, username)
 
-    # --- latest ---
-
     @lastfm.command(name="latest", aliases=["recent", "rt"], description="View your latest tracks")
     @bridge.bridge_option(name="username", description="Last.fm username to look up", required=False)
     @commands.cooldown(1, 10, commands.BucketType.user)
@@ -370,7 +360,6 @@ class LastFMCog(commands.Cog):
             return cont, None
 
         await createSimplePagination(tracks, 10, ctx.author.id, "lf_latest", render).show(ctx)
-
 
 def setup(bot):
     bot.add_cog(LastFMCog(bot))

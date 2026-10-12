@@ -17,7 +17,6 @@ ERA_MAP = getEraMap()
 EMOJI_MAP = getEmojiMap()
 items = 8
 
-# thank u claude i hate regex 💖
 @lru_cache(maxsize=4096)
 def parse_date_clean(text, drop_prefix):
     if not text:
@@ -323,7 +322,6 @@ class MetadataCog(commands.Cog):
             era_select.callback = era_callback
             view.add_item(ActionRow(era_select))
         await ctx.respond(view=view)
-
 
 def setup(bot):
     bot.add_cog(MetadataCog(bot))

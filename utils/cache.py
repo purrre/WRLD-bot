@@ -185,7 +185,6 @@ class Cache:
         stats = (cls.getGroupbuys() or {}).get("yearly_stats", {})
         return stats if isinstance(stats, dict) else {}
 
-
 class CacheSync:
     async def fetchWithRetry(self, url, paginate):
         attempts = config.settings.sync_retries
@@ -228,7 +227,6 @@ class CacheSync:
             return None
         dataHash = computeHash(data)
         if oldMeta and oldMeta.get("data_hash") == dataHash:
-            # nothing changed
             if name not in store:
                 await self.hydrateOne(name)
             consoleLog("CACHE", f"{name} unchanged")
@@ -324,7 +322,6 @@ class CacheSync:
         await asyncio.gather(*[self.hydrateOne(n) for n in names])
         return bool(store.get("songs"))
 
-
 class CachePoller:
     def __init__(self, manager, interval=None):
         self.manager = manager
@@ -349,7 +346,6 @@ class CachePoller:
             self.task.cancel()
             self.task = None
 
-
 cache = Cache()
 cache_manager = CacheSync()
 
@@ -361,7 +357,6 @@ async def ensureCache():
     if not hasData:
         consoleLog("CACHE", "redis cold, running full sync")
         await cache_manager.syncAll()
-
 
 def startPoller(interval=None):
     poller = CachePoller(cache_manager, interval=interval)

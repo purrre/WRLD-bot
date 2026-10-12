@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     default_prefix: str = ","
 
     admin_users: str = ""
+    bypass_ids: str = ""
     reaction_guilds: str = ""
 
     database_url: str = "sqlite+aiosqlite:///data/osse.sqlite"
@@ -41,9 +42,12 @@ class Settings(BaseSettings):
         return {part.strip() for part in self.admin_users.split(",") if part.strip()}
 
     @property
+    def bypass_id_set(self):
+        return {part.strip() for part in self.bypass_ids.split(",") if part.strip()}
+
+    @property
     def reaction_guild_ids(self):
         return {int(part.strip()) for part in self.reaction_guilds.split(",") if part.strip()}
-
 
 settings = Settings()
 
@@ -57,7 +61,6 @@ class endpoints:
     player = "https://player.juicewrldapi.com"
     beta = "https://beta.juicewrldapi.com"
 
-    # juicewrldapi
     songs = f"{jwa}/juicewrld/songs/"
     eras = f"{jwa}/juicewrld/eras/"
     albums = f"{jwa}/juicewrld/albums/"
@@ -69,11 +72,9 @@ class endpoints:
     media_status = f"{media}/status/"
     now_playing = f"{media}/analytics/now-playing/discord/?discord_user_id="
 
-    # my own services
     covers = f"{wrld}/api/covers/"
     covers_health = f"{wrld}/api/covers/health"
     groupbuys = f"{wrld}/api/groupbuys"
-
 
 class colors:
     red = 0xBB2124
@@ -82,9 +83,7 @@ class colors:
     main_suc = 0x912ADB
     main_fail = 0x4A1174
 
-
 class emojis:
-    # unicode fallbacks
     fail = "❌"
     success = "✅"
     loading = "⏳"

@@ -15,11 +15,6 @@ from rapidfuzz import fuzz, process as rf_process
 
 import config
 
-
-# ==============================================================================
-# logging
-# ==============================================================================
-
 infoFmt = "%(message)s"
 errorFmt = "%(asctime)s - %(levelname)s - %(message)s"
 dateFmt = "%Y-%m-%d %H:%M:%S"
@@ -30,12 +25,10 @@ levels = {
     "critical": logging.CRITICAL,
 }
 
-
 class LogFormatter(logging.Formatter):
     def format(self, record):
         fmt = infoFmt if record.levelno == logging.INFO else errorFmt
         return logging.Formatter(fmt, datefmt=dateFmt).format(record)
-
 
 def getLogger(name):
     log = logging.getLogger(name)
@@ -47,20 +40,13 @@ def getLogger(name):
         log.addHandler(handler)
     return log
 
-
 def consoleLog(origin, message, type="info"):
     getLogger(origin).log(levels.get(type.lower(), logging.INFO), message)
-
-
-# ==============================================================================
-# json loading (cached)
-# ==============================================================================
 
 jsonCache = {}
 
 fuzzyIndex = None
 fuzzyIndexHash = None
-
 
 def loadJsonFile(filePath, cacheKey=None, default=None, logErrors=True):
     key = cacheKey or filePath
@@ -83,25 +69,16 @@ def loadJsonFile(filePath, cacheKey=None, default=None, logErrors=True):
     jsonCache[key] = default
     return default
 
-
 def getEraMap():
     return loadJsonFile(os.path.join(config.ROOT, "data", "mapping.json"), cacheKey="era_map", default={}, logErrors=False)
-
 
 def getEmojiMap():
     return loadJsonFile(os.path.join(config.ROOT, "data", "emoji-mapping.json"), cacheKey="emoji_map", default={}, logErrors=False)
 
-
 def getCommandInfo():
     return loadJsonFile(os.path.join(config.ROOT, "data", "command_info.json"), cacheKey="command_info", default={})
 
-
-# ==============================================================================
-# http session and api calls
-# ==============================================================================
-
 _session = None
-
 
 async def getSession():
     global _session
@@ -109,16 +86,13 @@ async def getSession():
         _session = aiohttp.ClientSession()
     return _session
 
-
 async def closeSession():
     global _session
     if _session is not None and not _session.closed:
         await _session.close()
         _session = None
 
-
 async def httpcall(url, method="GET", paginate=False, expect_json=True, **kwargs):
-    # lazy import keeps the ui module from being a hard dependency of this one
     from utils.components import getErrorEmbed
     session = await getSession()
     results = []
@@ -126,7 +100,6 @@ async def httpcall(url, method="GET", paginate=False, expect_json=True, **kwargs
     host = apiHost(url)
     try:
         # ponytail: bounded loop + same-host check — API-supplied "next" URLs can't loop
-        # forever or redirect fetches at arbitrary internal hosts
         for _ in range(200):
             next_host = apiHost(current) if current else ""
             if not current or (next_host and next_host != host):
@@ -149,19 +122,15 @@ async def httpcall(url, method="GET", paginate=False, expect_json=True, **kwargs
         consoleLog("HTTP", str(e), type="error")
         return False, getErrorEmbed("Connection Error", "An unexpected error occurred while contacting the API.")
 
-
 def browseUrl(query):
     return config.endpoints.browse + urllib.parse.quote(str(query))
-
 
 def downloadUrl(path, *, plus=False):
     encoded = urllib.parse.quote_plus(str(path)) if plus else urllib.parse.quote(str(path))
     return config.endpoints.download + encoded
 
-
 def apiHost(url):
     return urllib.parse.urlparse(str(url)).netloc
-
 
 async def checkApiHealth(url, timeout=5):
     try:
@@ -170,7 +139,6 @@ async def checkApiHealth(url, timeout=5):
             return resp.status == 200
     except Exception:
         return False
-
 
 async def fetchJson(url, timeout=10):
     try:
@@ -182,7 +150,6 @@ async def fetchJson(url, timeout=10):
     except Exception:
         return None
 
-
 async def fetchBrowseItems(query, timeout=10):
     data = await fetchJson(browseUrl(query), timeout=timeout)
     if not isinstance(data, dict):
@@ -190,10 +157,6 @@ async def fetchBrowseItems(query, timeout=10):
     items = data.get("items", []) or []
     return items if isinstance(items, list) else []
 
-
-# ==============================================================================
-# text processing and fuzzy matching
-# ==============================================================================
 def stripVersionMarkers(text):
     if not text:
         return ""
@@ -208,10 +171,8 @@ def normalizeMatchingText(text):
         return ""
     return re.sub(r"[^a-z0-9]", "", str(text).lower())
 
-
 def tokenizeText(value):
     return [tok for tok in re.split(r"[^a-z0-9]+", normalizeText(value)) if len(tok) >= 3]
-
 
 def getTitleKey(value):
     tokens = tokenizeText(str(value or ""))
@@ -317,10 +278,6 @@ def findClosestMatch(userInput, listAll=False):
         return None
     return matchedSongs[0]
 
-# ==============================================================================
-# admin lookup and command checks
-# ==============================================================================
-
 def isAdminUser(userId):
     return str(userId) in config.settings.admin_ids
 
@@ -400,7 +357,6 @@ def adminCheck():
         return False
     return commands.check(predicate)
 
-
 def blacklistCheck(bot):
     async def predicate(ctx):
         from utils.database import db
@@ -440,12 +396,7 @@ async def safeReply(self, *args, **kwargs):
             return await self.send(*args, **kwargs)
         raise
 
-# ==============================================================================
-# android gateway identify patch
-# ==============================================================================
-
 # ponytail: spoofs a Discord Android client identify — gray-area ToS, kept because the
-# desktop identify fingerprint got the bot flagged in the past. Revisit before publishing.
 async def mobileIdentify(self):
     payload = {
         "op": self.IDENTIFY,

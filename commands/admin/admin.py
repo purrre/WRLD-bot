@@ -15,7 +15,6 @@ from utils.cache import cache, cache_manager
 from utils.database import db, Base
 from utils.functions import consoleLog, findClosestMatch, adminCheck, isBlacklistedUser, setRandomLyricStatus
 
-
 class AdminCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -163,7 +162,6 @@ class AdminCog(commands.Cog):
     @adminCheck()
     @commands.command()
     async def sban(self, ctx, user: discord.User):
-        # rofl
         msg = await ctx.reply(f"{emojis.loading} Working on it.. (1 EXCLUSION)")
         delay = random.randint(3, 7)
         await asyncio.sleep(delay)
@@ -202,7 +200,6 @@ class AdminCog(commands.Cog):
         await self.bot.db.removeBan(user.id)
         await ctx.respond(f"{emojis.success} Unbanned {user.mention}")
         consoleLog("ADMIN", f"{ctx.author} unbanned {user}")
-
 
 def setup(bot):
     bot.add_cog(AdminCog(bot))

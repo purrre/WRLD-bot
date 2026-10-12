@@ -97,7 +97,6 @@ class LyricsCog(commands.Cog):
         return view
 
     async def send_lyrics_followup(self, interaction, song):
-        """Send lyrics via followup (used after interaction.defer())."""
         views, error = self.get_lyrics_views(song)
         if error:
             return await interaction.followup.send(error, ephemeral=True)
@@ -205,7 +204,6 @@ class LyricsCog(commands.Cog):
 
         view.add_item(ActionRow(createSongDropdown(matches, ctx.author.id, placeholder="Choose a song to view lyrics...", callbackFunc=on_select)))
         await ctx.respond(view=view)
-
 
 def setup(bot):
     bot.add_cog(LyricsCog(bot))

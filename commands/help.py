@@ -21,7 +21,6 @@ CATEGORY_OPTIONS = [
     ("Misc", "Everything else", "misc"),
 ]
 
-
 def commandCategories(bot):
     grouped = {module: [] for _, _, module in CATEGORY_OPTIONS}
     for command in sorted(bot.commands, key=lambda cmd: cmd.qualified_name):
@@ -37,7 +36,6 @@ def commandCategories(bot):
                 break
     return grouped
 
-
 def categoryContainer(label, commandsList, prefix, page=0):
     startIdx = page * ITEMS_PER_PAGE
     pageCommands = commandsList[startIdx:startIdx + ITEMS_PER_PAGE]
@@ -50,7 +48,6 @@ def categoryContainer(label, commandsList, prefix, page=0):
     cont.add_separator(divider=True)
     cont.add_text(f"-# `{prefix}help <command>` for details - Page {page + 1}/{totalPages}")
     return cont
-
 
 class CategorySelect(discord.ui.Select):
     def __init__(self, bot, user_id, prefix):
@@ -95,7 +92,6 @@ class CategorySelect(discord.ui.Select):
             extraItemsFunc=lambda pv, page: [ActionRow(CategorySelect(self.bot, self.user_id, self.prefix))],
         )
         await pagination.show(interaction)
-
 
 class HelpCog(commands.Cog):
     def __init__(self, bot):
@@ -174,7 +170,6 @@ class HelpCog(commands.Cog):
             Button(label="JuiceWRLDAPI", url="https://juicewrldapi.com"),
         )
         await ctx.respond(view=createView(cont, row))
-
 
 def setup(bot):
     bot.add_cog(HelpCog(bot))

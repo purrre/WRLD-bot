@@ -6,6 +6,8 @@ from discord.ui import ActionRow, Button
 from config import settings, emojis, colors, NOT_YOURS
 from utils.components import createContainer, createView, stopParentView
 
+AUDIO_EXTS = (".mp3", ".m4a", ".wav", ".flac", ".aac", ".ogg", ".opus")
+
 class ServerCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -125,7 +127,7 @@ class ServerCog(commands.Cog):
                 await old_channel.delete(reason=f"Nuked by {ctx.author}")
             except Exception as e:
                 return await ctx.respond(f"{emojis.fail} Failed to nuke channel:\n```py\n{e}\n```")
-            await new_channel.send(message or f"## FIRST\n-# channel nuked by {ctx.author.mention}")
+            await new_channel.send(message or f"## 999\n-# channel nuked by {ctx.author.mention}")
 
         async def cancel_callback(interaction):
             if interaction.user.id != ctx.author.id:
@@ -140,6 +142,68 @@ class ServerCog(commands.Cog):
         row.add_item(cancel_btn)
         await ctx.respond(view=createView(cont, row))
 
+    @commands.guild_only()
+    @commands.group(name="antiaudio", aliases=["antimp3", "antiwav"], invoke_without_command=True, description="Manage audio attachment blocking")
+    @commands.cooldown(1, 5, commands.BucketType.guild)
+    async def antiaudio(self, ctx):
+        if not ctx.author.guild_permissions.administrator:
+            return await ctx.message.add_reaction(emojis.fail)
+        enabled = await self.bot.db.isAntiaudioEnabled(ctx.guild.id)
+        prefix = getattr(ctx, "clean_prefix", None) or getattr(ctx, "prefix", None) or settings.prefix
+        state = "enabled" if enabled else "disabled"
+        await ctx.respond(f"{emojis.info} Anti-audio is **{state}** in this server.\n-# `{prefix}antiaudio enable|disable`")
+
+    @antiaudio.command(name="enable", aliases=["on"], description="Enable audio attachment blocking")
+    @commands.has_permissions(administrator=True)
+    async def antiaudio_enable(self, ctx):
+        if await self.bot.db.isAntiaudioEnabled(ctx.guild.id):
+            return await ctx.respond(f"{emojis.fail} Anti-audio is already enabled.", ephemeral=True)
+        await self.bot.db.setAntiaudio(ctx.guild.id, True)
+        await ctx.respond(f"{emojis.success} Anti-audio **enabled**. Server is now protected")
+
+    @antiaudio.command(name="disable", aliases=["off"], description="Disable audio attachment blocking")
+    @commands.has_permissions(administrator=True)
+    async def antiaudio_disable(self, ctx):
+        if not await self.bot.db.isAntiaudioEnabled(ctx.guild.id):
+            return await ctx.respond(f"{emojis.fail} Anti-audio is already disabled.", ephemeral=True)
+        await self.bot.db.setAntiaudio(ctx.guild.id, False)
+        await ctx.respond(f"{emojis.success} Anti-audio **disabled**.")
+
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot or not message.guild:
+            return
+        if not await self.bot.db.isAntiaudioEnabled(message.guild.id):
+            return
+        if (
+            str(message.author.id) in settings.bypass_id_set
+            or message.author.id == message.guild.owner_id
+        ):
+            return
+        if message.reference and message.reference.type == discord.MessageReferenceType.forward:
+            snapshots = getattr(message, "message_snapshots", None)
+            msg = snapshots[0] if snapshots else None
+            if msg is None:
+                return
+        else:
+            msg = message
+        if getattr(msg.flags, "voice", False):
+            return
+        for attachment in msg.attachments:
+            is_audio = (
+                (attachment.content_type or "").lower().startswith("audio/")
+                or (attachment.filename or "").lower().endswith(AUDIO_EXTS)
+            )
+            if is_audio:
+                try:
+                    await message.delete()
+                except discord.Forbidden:
+                    pass
+                await message.channel.send(
+                    f"{emojis.fail} {message.author.mention} Audio files are not allowed in this server.",
+                    delete_after=10,
+                )
+                return
 
 def setup(bot):
     bot.add_cog(ServerCog(bot))

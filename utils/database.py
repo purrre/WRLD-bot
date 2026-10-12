@@ -10,11 +10,8 @@ from sqlalchemy.orm import DeclarativeBase
 import config
 from utils.functions import consoleLog
 
-
 class Base(DeclarativeBase):
     pass
-
-# me when typescript
 
 class Prefix(Base):
     __tablename__ = "prefixes"
@@ -47,6 +44,10 @@ class LastFmUser(Base):
     username = Column(String(64), nullable=False)
     hidden = Column(Integer, server_default="0", nullable=False)
 
+class AntiAudioGuild(Base):
+    __tablename__ = "antiaudio_guilds"
+    guild_id = Column(String(25), primary_key=True)
+
 REACTION_KINDS_DB = ("sobs", "skulls", "flames", "hearts", "clowns")
 
 class ReactionStats(Base):
@@ -71,7 +72,6 @@ class BotStats(Base):
         locals()[_name] = Column(Integer, server_default="0", nullable=False)
     del _name
 
-
 def normalizeSqliteUrl(url):
     prefix = "sqlite+aiosqlite:///"
     if url.startswith(prefix):
@@ -81,7 +81,6 @@ def normalizeSqliteUrl(url):
             return prefix + path.replace("\\", "/")
     return url
 
-
 class Database:
     def __init__(self):
         self._engine = None
@@ -89,6 +88,7 @@ class Database:
         self.prefixes = {}
         self.banned = {}
         self.disabled = {}
+        self.antiaudio = set()
 
     @property
     def engine(self):
@@ -105,7 +105,7 @@ class Database:
         return self._engine
 
     def session(self):
-        self.engine  # ensure sm exists
+        self.engine
         return self._sessionMaker()
 
     async def close(self):
@@ -130,13 +130,13 @@ class Database:
             self.disabled = {}
             for row in (await s.execute(select(DisabledCommand))).scalars():
                 self.disabled.setdefault(str(row.guild_id), set()).add(row.command_name)
+            self.antiaudio = {str(row.guild_id) for row in (await s.execute(select(AntiAudioGuild))).scalars()}
         consoleLog(
             "DB",
             f"loaded {len(self.prefixes)} prefixes, {len(self.banned)} bans, "
             f"{sum(len(v) for v in self.disabled.values())} disabled cmds",
         )
 
-    # ---- stats ----
     async def incrementStat(self, column, amount=1):
         if column not in statColumns:
             raise ValueError(f"unknown stat column: {column!r}")
@@ -156,7 +156,6 @@ class Database:
                 return {}
             return {name: getattr(row, name, 0) or 0 for name in statColumns}
 
-    # ---- prefixes ----
     def getPrefix(self, guildId):
         return self.prefixes.get(str(guildId)) if guildId is not None else None
 
@@ -176,7 +175,6 @@ class Database:
             await s.commit()
         self.prefixes.pop(gid, None)
 
-    # ---- bans ----
     def getBanReason(self, userId):
         return self.banned.get(str(userId)) if userId is not None else None
 
@@ -199,7 +197,6 @@ class Database:
             await s.commit()
         self.banned.pop(uid, None)
 
-    # ---- disabled commands ----
     def isCommandDisabled(self, guildId, commandName):
         if guildId is None or commandName is None:
             return False
@@ -231,7 +228,6 @@ class Database:
             rows = (await s.execute(select(DisabledCommand.command_name).where(DisabledCommand.guild_id == gid))).scalars()
             return list(rows)
 
-    # ---- grails ----
     async def getGrails(self, userId):
         async with self.session() as s:
             rows = (await s.execute(select(Grail.song_name).where(Grail.user_id == str(userId)).order_by(Grail.added_at))).scalars()
@@ -265,7 +261,6 @@ class Database:
             await s.execute(delete(Grail).where(Grail.user_id == str(userId)))
             await s.commit()
 
-    # ---- lastfm ----
     async def getLastfm(self, userId):
         async with self.session() as s:
             row = (await s.execute(select(LastFmUser).where(LastFmUser.user_id == str(userId)))).scalar_one_or_none()
@@ -288,7 +283,6 @@ class Database:
             rows = (await s.execute(select(LastFmUser))).scalars()
             return {row.user_id: (row.username, bool(row.hidden)) for row in rows}
 
-    # ---- reactions ----
     async def recordReaction(self, authorId, reactorId, kind, repDelta):
         if kind not in REACTION_KINDS_DB:
             raise ValueError(f"unknown reaction kind: {kind!r}")
@@ -339,7 +333,22 @@ class Database:
             )).all()
             return [(uid, val) for uid, val in rows]
 
-    # ---- generic table access ----
+    async def isAntiaudioEnabled(self, guildId):
+        return str(guildId) in self.antiaudio
+
+    async def setAntiaudio(self, guildId, enabled):
+        gid = str(guildId)
+        async with self.session() as s:
+            if enabled:
+                await s.execute(sqlite_insert(AntiAudioGuild.__table__).values(guild_id=gid).on_conflict_do_nothing(index_elements=["guild_id"]))
+            else:
+                await s.execute(delete(AntiAudioGuild).where(AntiAudioGuild.guild_id == gid))
+            await s.commit()
+        if enabled:
+            self.antiaudio.add(gid)
+        else:
+            self.antiaudio.discard(gid)
+
     def tables(self):
         return sorted(Base.metadata.tables.keys())
 
@@ -399,6 +408,5 @@ class Database:
                 stmt = stmt.where(t.c[col] == val)
             await s.execute(stmt)
             await s.commit()
-
 
 db = Database()

@@ -28,11 +28,6 @@ DEFAULT_UPLOAD_LIMIT = 8 * 1024 * 1024
 COMMON_WORDS = {"juice", "wrld", "the", "and", "or", "ft", "feat", "featuring", "prod", "by", "with"}
 MIN_BROWSE_LENGTH = 6
 
-
-# ==============================================================================
-# matching
-# ==============================================================================
-
 def dedupe_songs(songs):
     seen = set()
     unique = []
@@ -44,7 +39,6 @@ def dedupe_songs(songs):
         unique.append(song)
     return unique
 
-
 def fallback_matches(query):
     songs = cache_songs()
     normalized = stripVersionMarkers(query).lower()
@@ -55,7 +49,6 @@ def fallback_matches(query):
         if normalized in name or any(normalized in t for t in titles):
             matches.append(song)
     return matches
-
 
 def filter_mode_matches(songs, mode):
     filtered = []
@@ -70,7 +63,6 @@ def filter_mode_matches(songs, mode):
         filtered.append(song)
     return dedupe_songs(filtered)
 
-
 def song_matches(query, mode):
     results = findClosestMatch(query, listAll=True)
     if results and isinstance(results, dict) and "all" in results:
@@ -83,7 +75,6 @@ def song_matches(query, mode):
             if q in s.get("name", "").lower() or any(q in str(t).lower() for t in s.get("track_titles", []))
         ]
     return filter_mode_matches(matches, mode)
-
 
 def is_album_query(query):
     normalized_query = normalizeText(stripVersionMarkers(query))
@@ -112,7 +103,6 @@ def is_album_query(query):
             if query_key and candidate_key and candidate_key == query_key:
                 return True
     return False
-
 
 def match_song_for_cover(query):
     if is_album_query(query):
@@ -153,7 +143,6 @@ def match_song_for_cover(query):
     fallback = fallback_matches(normalized_query)
     return fallback[0] if fallback else None
 
-
 def exact_unsurfaced_match(query):
     normalized = normalizeText(stripVersionMarkers(query))
     query_key = getTitleKey(query)
@@ -172,11 +161,9 @@ def exact_unsurfaced_match(query):
                 return song
     return None
 
-
 def cache_songs():
     from utils.cache import cache
     return cache.getSongs() or []
-
 
 def extract_fnames(file_names_field):
     if not file_names_field:
@@ -194,9 +181,7 @@ def extract_fnames(file_names_field):
         return cleaned
     return [field_str]
 
-
 async def find_session_file(song):
-    """Find both session zip and session edit paths for a song."""
     query = song.get("name") or ((song.get("track_titles") or [""])[0])
     if not query:
         return None
@@ -236,20 +221,17 @@ async def find_session_file(song):
         return None
     return {"zip_path": zip_path, "edit_path": edit_path}
 
-
 def split_ext(name):
     if "." in name:
         stem, ext = name.rsplit(".", 1)
         return stem, f".{ext.lower()}"
     return name, ""
 
-
 def strip_channel_suffix(stem):
     match = re.search(r"^(.*?)[ _.\-]([lr])$", stem.strip(), re.IGNORECASE)
     if match:
         return match.group(1).strip(), match.group(2).upper()
     return stem, None
-
 
 def og_file_label(path):
     ext = file_ext({"path": path})
@@ -262,7 +244,6 @@ def og_file_label(path):
     label = f"OG .{ext_label} ({channel})" if channel else f"OG .{ext_label}"
     type_key = f"{ext}_{channel}" if channel else ext
     return label, type_key
-
 
 async def fetch_og_files(song):
     names = extract_fnames(song.get("file_names"))
@@ -301,7 +282,6 @@ async def fetch_og_files(song):
             found.append(path)
     return found
 
-
 async def fetch_og_buttons(song):
     buttons = []
     try:
@@ -321,18 +301,9 @@ async def fetch_og_buttons(song):
         consoleLog("OG_BUTTONS", f"error fetching og buttons: {e}", type="error")
     return buttons
 
-
-# ==============================================================================
-# instrumentals
-# ==============================================================================
-
 _INST_PREFIX = re.compile(r"^instrumental(?:\s*\(\d+\))?\s*:\s*", re.IGNORECASE)
 
-
 def parse_instrumentals(song):
-    """Extract instrumental beat name(s) from a song's `instrumentals` field.
-    Returns a list of name strings. Handles both plain strings and multi-line
-    fields with 'Instrumental:', 'Instrumental (1):' etc. prefixes."""
     raw = str(song.get("instrumentals") or "").strip()
     if not raw or raw.lower() in INVALID_VALS:
         return []
@@ -348,30 +319,18 @@ def parse_instrumentals(song):
                 names.append(name)
         elif not any(p in line.lower() for p in ("loop", "midi", "stems", "kit")):
             # ponytail: lines without "Instrumental:" prefix but also not loop/midi/stems/kit
-            # are treated as the instrumental name (single-line fields like "Wonderland", "shordi")
             if not names:
                 names.append(line)
     return names
 
-
 def _match_instrumental_items(items, query):
-    """Match browse items to an instrumental query. Tries exact stem match first,
-    then falls back to substring match (query contained in item name).
-    Returns exact matches first, then substring matches — caller filters by extension."""
     stem = query.rsplit(".", 1)[0].lower()
     exact = [i for i in items if str(i.get("name", "")).rsplit(".", 1)[0].lower() == stem]
     # ponytail: don't return early on exact matches — a directory named "Wasted" matches
-    # exactly but the actual file "Wasted intrumental prod by Cbmix.wav" only matches
-    # via substring. Include both so the caller's audio filter can pick the file.
     substring = [i for i in items if stem in str(i.get("name", "")).lower() and i not in exact]
     return exact + substring
 
-
 async def _browse_instrumental(query):
-    """Browse for instrumental files, trying the full query first then progressively
-    shorter prefixes. The browse API does phrase matching, so multi-word queries like
-    'Wasted intrumental Cbmix' return nothing while 'Wasted' returns the file.
-    Returns (items, effective_query) — effective_query is what actually got results."""
     query = filter_query_words(query)
     if not query or len(query) < MIN_BROWSE_LENGTH:
         return [], None
@@ -379,8 +338,6 @@ async def _browse_instrumental(query):
     if items:
         return items, query
     # ponytail: browse API does phrase matching, multi-word queries often return 0;
-    # try the first word as a fallback. Ceiling: if the first word is too generic
-    # (e.g. "Type"), may return noise — _match_instrumental_items filters it.
     words = query.split()
     if len(words) > 1:
         first = words[0]
@@ -390,10 +347,43 @@ async def _browse_instrumental(query):
                 return items, first
     return [], None
 
+def _era_dirs(song, era_items):
+    era_field = song.get("era")
+    era_name = era_field.get("name") if isinstance(era_field, dict) else str(era_field or "")
+    era_norm = normalizeText(era_name)
+    targets = [e for e in era_items if era_norm and era_norm in normalizeText(str(e.get("name", "")))]
+    return targets or era_items
+
+
+async def _browse_instrumental_dir(song, names):
+    found = []
+    found_ext = None
+    titles = {normalizeText(q) for q in song_queries(song)}
+    titles.discard("")
+    stems = {normalizeText(n) for n in names}
+    stems.discard("")
+    for era in _era_dirs(song, await browse_files(path="Instrumentals")):
+        if era.get("type") != "directory":
+            continue
+        era_path = str(era.get("path") or f"Instrumentals/{era.get('name', '')}")
+        for track_dir in await browse_files(path=era_path):
+            if track_dir.get("type") != "directory":
+                continue
+            dir_name = normalizeText(str(track_dir.get("name") or os.path.basename(str(track_dir.get("path", "")))))
+            if not dir_name or not any(c == dir_name or (len(c) >= 5 and c in dir_name) for c in titles):
+                continue
+            track_path = str(track_dir.get("path") or f"{era_path}/{track_dir.get('name', '')}")
+            audio = [i for i in await browse_files(path=track_path)
+                     if file_ext(i) in (".mp3", ".wav") and i.get("path")]
+            stemmed = [i for i in audio if normalizeText(str(i.get("name", "")).rsplit(".", 1)[0]) in stems]
+            for item in (stemmed or audio):
+                url = downloadUrl(str(item.get("path")))
+                if url not in found:
+                    found.append(url)
+                    found_ext = found_ext or file_ext(item)
+    return found, found_ext
 
 async def fetch_instrumental_urls(song):
-    """Browse for instrumental files matching the parsed instrumental name(s).
-    Returns (urls, ext) like fetch_urls. Prefers paths under Instrumentals/."""
     names = parse_instrumentals(song)
     if not names:
         return [], None
@@ -416,11 +406,13 @@ async def fetch_instrumental_urls(song):
             if url and url not in found:
                 found.append(url)
                 found_ext = found_ext or file_ext(item)
+    if not found:
+        dir_urls, dir_ext = await _browse_instrumental_dir(song, names)
+        found.extend(dir_urls)
+        found_ext = found_ext or dir_ext
     return found, found_ext
 
-
 async def fetch_instrumental_urls_by_name(name):
-    """Browse for instrumental files matching a direct instrumental name query."""
     query = filter_query_words(name)
     if not query or len(query) < MIN_BROWSE_LENGTH:
         return [], None
@@ -441,11 +433,6 @@ async def fetch_instrumental_urls_by_name(name):
             found_ext = found_ext or file_ext(item)
     return found, found_ext
 
-
-# ==============================================================================
-# song view rendering
-# ==============================================================================
-
 INVALID_VALS = {"none", "n/a", "", "null"}
 
 METADATA_MAP = [
@@ -461,13 +448,11 @@ _DATE_PREFIXES = re.compile(
     re.IGNORECASE,
 )
 
-
 def clean_date_value(val):
     if not val:
         return val
     cleaned = _DATE_PREFIXES.sub("", str(val)).strip()
     return cleaned or val
-
 
 def build_metadata_fields(song):
     fields = []
@@ -487,7 +472,6 @@ def build_metadata_fields(song):
         fields.append(f"**{label}**\n{val_str}")
     return fields
 
-
 def build_notes_button(song):
     details = str(song.get("additional_information") or "").strip()
     if not details or details.lower() in INVALID_VALS or len(details) <= notesLengthThreshold:
@@ -505,24 +489,20 @@ def build_notes_button(song):
     btn.callback = notes_callback
     return btn
 
-
 def image_url(song):
     img = song.get("image_url")
     if img and img.startswith("/"):
         return f"{endpoints.jwa}{img}"
     return img
 
-
 def song_title(song):
     return build_song_header(song)
-
 
 def build_song_header(song):
     titles = song.get("track_titles", [song.get("name", "Unknown")])
     main_title = titles[0] if titles else "Unknown"
     alt_names = titles[1:] if len(titles) > 1 else []
     return main_title, alt_names
-
 
 def format_song_line(song, index):
     title = build_song_header(song)[0]
@@ -538,7 +518,6 @@ def format_song_line(song, index):
     else:
         link = f"**{title}**"
     return f"{index}. {link}\n-# {category} | {era_name} | Prod: {song.get('producers', 'N/A') or 'N/A'} | Eng: {song.get('engineers', 'N/A') or 'N/A'}"
-
 
 def build_song_details_lines(song, mode="info"):
     lines = []
@@ -563,7 +542,6 @@ def build_song_details_lines(song, mode="info"):
             lines.append(f"-# Recording Dates: {record_date.replace(chr(10), ' ').replace(chr(13), ' ')}")
     return lines
 
-
 def build_song_container(song, include_details=True, mode="info"):
     main_title, alt_names = build_song_header(song)
     header_lines = [f"### {main_title}"]
@@ -577,12 +555,9 @@ def build_song_container(song, include_details=True, mode="info"):
     full_img = image_url(song)
     header_text = TextDisplay("\n".join(header_lines))
     # ponytail: Section requires an accessory (Thumbnail/Button); when a song has no
-    # image_url (e.g. released tracks), fall back to a plain TextDisplay — a Section
-    # with accessory=None is rejected by Discord with "accessory: This field is required".
     if full_img:
         return Section(header_text, accessory=Thumbnail(full_img))
     return header_text
-
 
 def build_song_details_section(song):
     details = str(song.get("additional_information") or "").strip()
@@ -594,7 +569,6 @@ def build_song_details_section(song):
             return Section(details_text, accessory=Thumbnail(full_img))
         return details_text
     return None
-
 
 async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=None):
     main_cont = createContainer()
@@ -654,15 +628,11 @@ async def build_song_view(song, user_id, mode="info", matches=None, og_buttons=N
         view.add_item(ActionRow(dropdown))
     return view
 
-
 def not_found_text(mode, query):
     names = {"leak": "audio file", "snippets": "snippet files", "session": "session files", "instrumental": "instrumental", "info": "results"}
     return f"{emojis.fail} No {names.get(mode, 'results')} found for **{query}**."
 
-
 def build_not_found_view(query, matches, user_id, select_callback):
-    """Build the 'Not Found' disambiguation view: 'Did you mean **X**?' confirm button + dropdown.
-    select_callback(interaction, song) is called after deferring — use edit_original_response or followup."""
     best = matches[0]
     best_titles = best.get("track_titles") or [best.get("name", "Unknown")]
     main_title = best_titles[0] if best_titles else best.get("name", "Unknown")
@@ -700,16 +670,10 @@ def build_not_found_view(query, matches, user_id, select_callback):
     cont.add_item(ActionRow(dropdown))
     return view
 
-
-# ==============================================================================
-# file fetching and streaming
-# ==============================================================================
-
 def filter_query_words(query):
     words = query.split()
     filtered = [w for w in words if w.lower() not in COMMON_WORDS]
     return " ".join(filtered) if filtered else query
-
 
 def song_queries(song):
     titles = song.get("track_titles") or []
@@ -717,7 +681,6 @@ def song_queries(song):
     values = [name, *titles]
     raw = [str(v).strip() for v in dict.fromkeys(values) if v]
     return [filter_query_words(q) for q in raw if filter_query_words(q)]
-
 
 def file_ext(item):
     extension = item.get("extension")
@@ -730,7 +693,6 @@ def file_ext(item):
     if "." not in basename:
         return None
     return f".{basename.rsplit('.', 1)[1].lower()}"
-
 
 async def browse_files(query=None, *, path=None):
     if path is not None:
@@ -749,12 +711,40 @@ async def browse_files(query=None, *, path=None):
     except Exception:
         return []
 
-
 async def fetch_snippet_urls(song):
-    # ponytail: browse search returns Snippets/ directories, not the .mp4/.mov inside;
-    # recurse via ?path= listing. Ceiling: one extra request per Snippets/ dir per query.
     urls = []
     found_ext = None
+    candidates = {normalizeText(q) for q in song_queries(song)}
+    candidates.discard("")
+
+    def collect(items):
+        for item in items:
+            if file_ext(item) in (".mp4", ".mov") and item.get("path"):
+                url = downloadUrl(str(item.get("path")))
+                if url not in urls:
+                    urls.append(url)
+                    yield file_ext(item)
+
+    for root in ("Snippets", "Snippets-Old"):
+        for name in song_queries(song):
+            for ext in collect(await browse_files(path=f"{root}/{name}")):
+                found_ext = found_ext or ext
+        for era in _era_dirs(song, await browse_files(path=root)):
+            if era.get("type") != "directory":
+                continue
+            era_path = str(era.get("path") or f"{root}/{era.get('name', '')}")
+            for track_dir in await browse_files(path=era_path):
+                if track_dir.get("type") != "directory":
+                    continue
+                dir_name = normalizeText(str(track_dir.get("name") or os.path.basename(str(track_dir.get("path", "")))))
+                if not dir_name or not any(c == dir_name or (len(c) >= 5 and c in dir_name) for c in candidates):
+                    continue
+                track_path = str(track_dir.get("path") or f"{era_path}/{track_dir.get('name', '')}")
+                for ext in collect(await browse_files(path=track_path)):
+                    found_ext = found_ext or ext
+        if urls:
+            return urls, found_ext
+    # ponytail: browse search returns Snippets/ directories, not the .mp4/.mov inside;
     for query in song_queries(song):
         items = await browse_files(query)
         for item in items:
@@ -772,13 +762,11 @@ async def fetch_snippet_urls(song):
             return urls, found_ext
     return [], None
 
-
 def upload_limit(interaction):
     guild = interaction.guild
     if guild and getattr(guild, "filesize_limit", None):
         return guild.filesize_limit
     return DEFAULT_UPLOAD_LIMIT
-
 
 async def fetch_urls(song, ext=None):
     if ext == ".mp3":
@@ -817,10 +805,8 @@ async def fetch_urls(song, ext=None):
             return list(dict.fromkeys(urls)), found_ext
     return [], None
 
-
 # ponytail: bounds concurrent in-memory file buffers — each can be as large as upload_limit
 _send_file_sem = asyncio.Semaphore(4)
-
 
 async def send_file(interaction, url, filename, kind, session=None):
     async with _send_file_sem:
@@ -829,7 +815,6 @@ async def send_file(interaction, url, filename, kind, session=None):
         data = io.BytesIO()
         try:
             # ponytail: total=300 gives large files room to download; sock_read=30 catches dead connections
-            # without aborting a slow-but-progressing transfer. The old total=60 caused empty "Error:" on big files.
             timeout = aiohttp.ClientTimeout(total=300, sock_read=30, sock_connect=10)
             async with session.get(url, timeout=timeout) as response:
                 if response.status != 200:
@@ -870,8 +855,6 @@ async def send_file(interaction, url, filename, kind, session=None):
         finally:
             data.close()
 
-
-
 class SongButton(discord.ui.Button):
     def __init__(self, song):
         super().__init__(emoji="💿", label="MP3", style=discord.ButtonStyle.gray, custom_id=f"mp3_{song.get('public_id')}")
@@ -896,7 +879,6 @@ class SongButton(discord.ui.Button):
         await send_file(interaction, self.stream_urls[0], f"{self.song.get('name', 'track')}{ext}", kind)
         self.stream_urls = []
         self.found_ext = None
-
 
 class SnipButton(discord.ui.Button):
     def __init__(self, song):
@@ -924,7 +906,6 @@ class SnipButton(discord.ui.Button):
         await interaction.followup.send(view=createView(cont), ephemeral=True)
         await db.incrementStat("snippets_sent", amount=len(shown))
 
-
 class InstButton(discord.ui.Button):
     def __init__(self, song):
         super().__init__(emoji="🎹", label="Instrumental", style=discord.ButtonStyle.gray)
@@ -951,7 +932,6 @@ class InstButton(discord.ui.Button):
         self.stream_urls = []
         self.found_ext = None
 
-
 class SessionEditSendButton(discord.ui.Button):
     def __init__(self, path):
         super().__init__(emoji="🎬", label="Session Edit", style=ButtonStyle.gray)
@@ -961,7 +941,6 @@ class SessionEditSendButton(discord.ui.Button):
         await interaction.response.defer(ephemeral=True, invisible=False)
         await send_file(interaction, downloadUrl(self.path), os.path.basename(self.path), "Session Edit")
 
-
 class SessionZipSendButton(discord.ui.Button):
     def __init__(self, path):
         super().__init__(emoji="📁", label="Session Zip", style=ButtonStyle.gray)
@@ -970,7 +949,6 @@ class SessionZipSendButton(discord.ui.Button):
     async def callback(self, interaction):
         await interaction.response.defer(ephemeral=True, invisible=False)
         await send_file(interaction, downloadUrl(self.path, plus=True), os.path.basename(self.path), "Session Zip")
-
 
 def build_session_search_terms(query, song=None):
     terms = [str(query).strip()]
@@ -991,7 +969,6 @@ def build_session_search_terms(query, song=None):
         cleaned.append(normalized)
     return cleaned
 
-
 def score_candidate(item, terms, *, require_sessions_hint=False):
     name = normalizeText(item.get("name", ""))
     path = normalizeText(item.get("path", ""))
@@ -1002,7 +979,6 @@ def score_candidate(item, terms, *, require_sessions_hint=False):
         if not t:
             continue
         # ponytail: exact name match scores much higher than substring —
-        # prevents "Big" matching "Big Swag" with the same score
         if t == name:
             score += 15
         elif t in name:
@@ -1016,9 +992,7 @@ def score_candidate(item, terms, *, require_sessions_hint=False):
         score += 4
     return score
 
-
 def era_folder_matches(era_name, path):
-    """Check if the era folder (2nd path component) matches the song's era."""
     if not era_name or not path:
         return False
     full_era = ALBUM_MAPPING.get(era_name.strip()) or era_name.strip()
@@ -1026,7 +1000,6 @@ def era_folder_matches(era_name, path):
     if len(parts) < 2:
         return False
     return normalizeText(full_era) in normalizeText(parts[1])
-
 
 async def find_best_session_asset(query, *, kind):
     matched_song = None
@@ -1075,7 +1048,6 @@ async def find_best_session_asset(query, *, kind):
             candidates_by_path = era_filtered
     sorted_paths = [p for p, _ in sorted(candidates_by_path.items(), key=lambda e: e[1][0], reverse=True)]
     return sorted_paths, matched_song
-
 
 def build_session_asset_view(*, title, all_titles=None, category, path, song, button, extra_buttons=None, show_file=True, cover_url=None):
     cont = createContainer()

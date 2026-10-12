@@ -1,4 +1,3 @@
-# ported from TPNE for the Outsiders server
 
 import discord
 from discord.ext import commands
@@ -35,7 +34,6 @@ POSITIVE_AURAS = [
     (7001, 8000, "Eminent Aura"), (8001, 9000, "Eternal Aura"), (9001, 10000, "Infinite Aura"),
 ]
 
-
 def calculateAura(score):
     if score <= -10001:
         return "Null Aura"
@@ -45,7 +43,6 @@ def calculateAura(score):
         if low <= score <= high:
             return level
     return "Hes too powerful..."
-
 
 class ReactionsCog(commands.Cog):
     def __init__(self, bot):
@@ -136,7 +133,6 @@ class ReactionsCog(commands.Cog):
             cont.add_text(f"### {heading}\n" + ("\n".join(lines) if lines else "No data"))
         await ctx.respond(view=createView(cont))
 
-
 def _makeGroup(cog, kind, meta):
     @commands.group(name=kind, invoke_without_command=True, description=f"View a user's {meta['label']} reaction stats")
     @commands.cooldown(1, 5, commands.BucketType.user)
@@ -149,7 +145,6 @@ def _makeGroup(cog, kind, meta):
         await cog.sendLeaderboard(ctx, kind)
 
     return grp
-
 
 def setup(bot):
     cog = ReactionsCog(bot)

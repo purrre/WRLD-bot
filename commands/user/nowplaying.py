@@ -94,6 +94,5 @@ class NowPlayingCog(commands.Cog):
         except discord.HTTPException:
             pass
 
-
 def setup(bot):
     bot.add_cog(NowPlayingCog(bot))

@@ -60,7 +60,6 @@ def search_entries(query, entries):
     scored.sort(key=lambda x: x[0], reverse=True)
     return [e for _, e in scored]
 
-
 def normalize_song_payload(entry):
     gb = entry.get("gb") or entry.get("group") or entry.get("groupbuy_info") or {}
     title = entry.get("title", "Unknown")
@@ -76,7 +75,6 @@ def normalize_song_payload(entry):
         "notes": str(entry.get("additional_info", "")).strip(),
         "family": [item for item in (entry.get("family") or []) if str(item).strip() and str(item).strip() != title],
     }
-
 
 async def create_groupbuy_container(entry):
     gb = entry.get("gb") or {}
@@ -102,7 +100,6 @@ async def create_groupbuy_container(entry):
         fields=fields,
     )
 
-
 def get_year_container(year_data):
     total = year_data.get("total", 0)
     total_text = format_price(total)
@@ -116,7 +113,6 @@ def get_year_container(year_data):
         ],
         heading="##",
     )
-
 
 class GroupbuysCog(commands.Cog):
     def __init__(self, bot):
@@ -192,7 +188,6 @@ class GroupbuysCog(commands.Cog):
         cont = get_year_container(year_option) if year_option else await create_groupbuy_container(matches[0])
         view = self.build_groupbuy_view(cont, matches, ctx.author.id, year_option)
         await ctx.respond(view=view)
-
 
 def setup(bot):
     bot.add_cog(GroupbuysCog(bot))

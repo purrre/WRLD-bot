@@ -25,18 +25,17 @@ def get_prefix(bot, message):
     prefix = db.getPrefix(message.guild.id) or config.settings.prefix
     return commands.when_mentioned_or(prefix)(bot, message)
 
-
 class WRLD(bridge.Bot):
     def __init__(self):
         intents = discord.Intents.default()
-        intents.message_content = True  # prefix commands
-        intents.members = True          # whoknows iterates guild members
+        intents.message_content = True
+        intents.members = True
         super().__init__(
             command_prefix=get_prefix,
             intents=intents,
             max_messages=100,
             cache_app_emojis=True,
-            allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=False, replied_user=False),
+            allowed_mentions=discord.AllowedMentions(everyone=False, roles=False, users=True, replied_user=False),
             help_command=None,
         )
         self.add_check(blacklistCheck(self))
@@ -89,12 +88,10 @@ class WRLD(bridge.Bot):
         except Exception as e:
             consoleLog("SYSTEM", f"recovery error: {e}", type="error")
 
-
 def pre_run_checks():
     if not config.settings.token:
         consoleLog("SETUP", "no bot token found, set BOT_TOKEN (or DEV_BOT_TOKEN in dev mode)", type="critical")
         raise SystemExit(1)
-
 
 async def async_setup():
     await db.setup()
@@ -102,7 +99,6 @@ async def async_setup():
     await ensureCache()
     if config.settings.sync_enabled:
         return startPoller(config.settings.sync_interval)
-
 
 async def main():
     pre_run_checks()
@@ -118,7 +114,6 @@ async def main():
         await closeSession()
         await closeRedis()
         await db.close()
-
 
 if __name__ == "__main__":
     try:

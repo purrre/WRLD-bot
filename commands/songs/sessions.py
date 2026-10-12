@@ -14,7 +14,6 @@ from utils.songs import (
     SessionEditSendButton, SessionZipSendButton,
 )
 
-
 class SessionsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -163,7 +162,6 @@ class SessionsCog(commands.Cog):
 
         view = build_not_found_view(song, pseudo_songs, ctx.author.id, select_callback)
         await ctx.respond(view=view)
-
 
 def setup(bot):
     bot.add_cog(SessionsCog(bot))

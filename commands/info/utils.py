@@ -15,7 +15,6 @@ from config import colors, endpoints, settings
 from utils.functions import httpcall, getSession
 from utils.components import loading, createView
 
-
 async def _probe(client, hosts):
     results = []
     for name, (base_url, paths) in hosts.items():
@@ -32,7 +31,6 @@ async def _probe(client, hosts):
         ping_ms = (time.perf_counter() - start) * 1000
         results.append((name, ping_ms if online else None))
     return results
-
 
 class UtilsCog(commands.Cog):
     def __init__(self, bot):
@@ -76,7 +74,8 @@ class UtilsCog(commands.Cog):
         prefix = getattr(ctx, "prefix", None) or settings.prefix
         cont.add_text(f"-# Use `{prefix}jwa` for classic layout\n-# Use `{prefix}wrld` for bot ping")
         view = createView(cont)
-        await msg.edit(content=None, embed=None, view=view)
+        await msg.delete()
+        await ctx.respond(view=view)
 
     @bridge.bridge_command(name='jwa', usage='jwa', description='Pings juicewrldapi (classic embed layout)')
     @commands.cooldown(1, 10, commands.BucketType.user)
@@ -146,7 +145,6 @@ class UtilsCog(commands.Cog):
         )
         embed.set_footer(text=self.bot.user.name, icon_url=self.bot.user.avatar.url)
         await msg.edit(embed=embed)
-
 
 def setup(bot):
     bot.add_cog(UtilsCog(bot))

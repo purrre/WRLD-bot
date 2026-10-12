@@ -4,7 +4,6 @@ from config import emojis
 from utils.database import db
 from utils.components import createContainer, createView
 
-
 class StatsCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -40,7 +39,6 @@ class StatsCog(commands.Cog):
             description=stats_text + "\n\n-# Started Tracking <t:1780019830:R>",
         )
         await ctx.respond(view=createView(cont), ephemeral=True)
-
 
 def setup(bot):
     bot.add_cog(StatsCog(bot))

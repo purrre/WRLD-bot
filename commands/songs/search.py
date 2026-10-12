@@ -257,6 +257,5 @@ class SearchCog(commands.Cog):
         sent_message = await self.get_response_msg(ctx, msg)
         fireAndForget(self.update_og_buttons(sent_message, random_song, ctx.author.id, [random_song]))
 
-
 def setup(bot):
     bot.add_cog(SearchCog(bot))

@@ -10,7 +10,6 @@ from utils.functions import getEmojiMap
 notesLengthThreshold = len("Song was originally untitled.") * 2
 emojiMap = getEmojiMap()
 
-
 def getEraEmoji(song):
     era_field = song.get("era")
     if not era_field:
@@ -26,13 +25,11 @@ class TimeoutView(DesignerView):
         kwargs.setdefault("disable_on_timeout", True)
         super().__init__(*args, **kwargs)
 
-
 class PersistentSongView(DesignerView):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("timeout", 1800)
         kwargs.setdefault("disable_on_timeout", True)
         super().__init__(*args, **kwargs)
-
 
 class DropdownView(DesignerView):
     def __init__(self, *args, **kwargs):
@@ -40,12 +37,10 @@ class DropdownView(DesignerView):
         kwargs.setdefault("disable_on_timeout", True)
         super().__init__(*args, **kwargs)
 
-
 class DeleteRow(ActionRow):
     @button(label="Delete", style=discord.ButtonStyle.red, id=999)
     async def deleteCallback(self, button, interaction):
         await interaction.message.delete()
-
 
 class ErrorView(TimeoutView):
     def __init__(self, errorMsg):
@@ -54,17 +49,14 @@ class ErrorView(TimeoutView):
         self.add_item(Container(section))
         self.add_item(DeleteRow())
 
-
 async def loading(method, x=None):
     return discord.Embed(description=f"Getting {method} information.. {x or ''}", color=colors.main)
-
 
 def getErrorEmbed(title, description, status=None):
     embed = discord.Embed(title=f"❌ {title}", description=description, color=Color.red(), timestamp=datetime.now())
     if status:
         embed.set_footer(text=f"HTTP Status: {status}")
     return embed
-
 
 def createContainer(*, title=None, description=None, color=None, fields=None, heading="###", separator=True, spacing=SeparatorSpacingSize.small):
     container = Container(color=color)
@@ -93,7 +85,6 @@ def createContainer(*, title=None, description=None, color=None, fields=None, he
         container.add_text(f"**{nameText}**\n{valueText}" if nameText else valueText)
     return container
 
-
 def createView(*items, viewClass=DesignerView, **view_kwargs):
     view = viewClass(**view_kwargs)
     for item in items:
@@ -101,14 +92,12 @@ def createView(*items, viewClass=DesignerView, **view_kwargs):
             view.add_item(item)
     return view
 
-
 def stopParentView(item):
     obj = item
     while getattr(obj, "parent", None) is not None and not isinstance(obj, BaseView):
         obj = obj.parent
     if isinstance(obj, BaseView):
         obj.stop()
-
 
 def createSongDropdown(songs, userId, placeholder, callbackFunc, formatType="song"):
     options = []
@@ -152,7 +141,6 @@ def createSongDropdown(songs, userId, placeholder, callbackFunc, formatType="son
 
     dropdown.callback = defaultCallback
     return dropdown
-
 
 class PaginatedView:
     def __init__(self, items, itemsPerPage, userId, commandType, renderPageFunc, viewClass=None, extraContext=None, extraItemsFunc=None):
@@ -206,10 +194,8 @@ class PaginatedView:
         else:
             await interactionOrCtx.respond(view=view)
 
-
 def createSimplePagination(items, itemsPerPage, userId, commandType, renderPageFunc, viewClass=None, extraContext=None, extraItemsFunc=None):
     return PaginatedView(items, itemsPerPage, userId, commandType, renderPageFunc, viewClass, extraContext, extraItemsFunc)
-
 
 def buildCommandGuide(info, prefix, aliases):
     guide = createContainer(title=info["title"], description=f"-# {info['description']}", heading="##")

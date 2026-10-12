@@ -34,7 +34,6 @@ async def search_covers(query):
             result.append(fixed)
     return result[:19]
 
-
 class CoversCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -74,7 +73,6 @@ class CoversCog(commands.Cog):
         )
         await db.incrementStat("covers_found", amount=len(image_urls))
         await pagination.show(ctx)
-
 
 def setup(bot):
     bot.add_cog(CoversCog(bot))

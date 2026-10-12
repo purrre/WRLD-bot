@@ -120,6 +120,5 @@ class GrailCog(commands.Cog):
         cont = createContainer(title="Not Found", description=f"No grails found matching `{grail}`.", heading="##")
         await ctx.respond(view=createView(cont), ephemeral=True)
 
-
 def setup(bot):
     bot.add_cog(GrailCog(bot))
