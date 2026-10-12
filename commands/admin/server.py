@@ -181,8 +181,8 @@ class ServerCog(commands.Cog):
         ):
             return
         if message.reference and message.reference.type == discord.MessageReferenceType.forward:
-            snapshots = getattr(message, "message_snapshots", None)
-            msg = snapshots[0] if snapshots else None
+            snapshots = getattr(message, "snapshots", None)
+            msg = snapshots[0].message if snapshots else None
             if msg is None:
                 return
         else:
