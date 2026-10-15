@@ -175,9 +175,13 @@ class ServerCog(commands.Cog):
             return
         if not await self.bot.db.isAntiaudioEnabled(message.guild.id):
             return
+        channel_ids = {str(message.channel.id)}
+        if getattr(message.channel, "parent_id", None):
+            channel_ids.add(str(message.channel.parent_id))
         if (
             str(message.author.id) in settings.bypass_id_set
             or message.author.id == message.guild.owner_id
+            or channel_ids & settings.bypass_channel_ids
         ):
             return
         if message.reference and message.reference.type == discord.MessageReferenceType.forward:

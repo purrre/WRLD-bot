@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     admin_users: str = ""
     bypass_ids: str = ""
+    bypass_channels: str = ""
     reaction_guilds: str = ""
 
     database_url: str = "sqlite+aiosqlite:///data/osse.sqlite"
@@ -44,6 +45,10 @@ class Settings(BaseSettings):
     @property
     def bypass_id_set(self):
         return {part.strip() for part in self.bypass_ids.split(",") if part.strip()}
+
+    @property
+    def bypass_channel_ids(self):
+        return {part.strip() for part in self.bypass_channels.split(",") if part.strip()}
 
     @property
     def reaction_guild_ids(self):
