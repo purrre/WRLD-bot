@@ -1,5 +1,6 @@
 import traceback
 
+import discord
 from discord.ext import commands
 from discord import SeparatorSpacingSize
 from discord.ui import TextDisplay
@@ -38,7 +39,7 @@ class ErrorsCog(commands.Cog):
             pass
 
     async def dispatch_error(self, ctx, error):
-        if isinstance(error, (commands.CommandNotFound, commands.NotOwner)):
+        if isinstance(error, (commands.CommandNotFound, commands.NotOwner, discord.Forbidden)):
             return
         if isinstance(error, (commands.MissingRequiredArgument, commands.BadArgument)):
             return await self.sendUsage(ctx)
@@ -54,7 +55,10 @@ class ErrorsCog(commands.Cog):
         if isinstance(error, commands.CheckFailure):
             return consoleLog("BLACKLIST", f"{ctx.author.name} ({ctx.author.id}) tried to run a command")
         await self.logError(getattr(error, "original", error), ctx=ctx)
-        await ctx.respond(f"{emojis.fail} Something went wrong. The error has been reported.", delete_after=10)
+        try:
+            await ctx.respond(f"{emojis.fail} Something went wrong. The error has been reported.", delete_after=10)
+        except Exception:
+            pass
 
     @commands.Cog.listener()
     async def on_command_error(self, ctx, error):
