@@ -74,7 +74,11 @@ class UtilsCog(commands.Cog):
         prefix = getattr(ctx, "prefix", None) or settings.prefix
         cont.add_text(f"-# Use `{prefix}jwa` for classic layout\n-# Use `{prefix}wrld` for bot ping")
         view = createView(cont)
-        await msg.delete()
+        interaction = getattr(ctx, "interaction", None)
+        if interaction is not None:
+            await interaction.delete_original_response()
+        else:
+            await msg.delete()
         await ctx.respond(view=view)
 
     @bridge.bridge_command(name='jwa', usage='jwa', description='Pings juicewrldapi (classic embed layout)')
