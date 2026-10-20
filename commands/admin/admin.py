@@ -31,7 +31,7 @@ class AdminCog(commands.Cog):
     async def pull(self, ctx):
         msg = await ctx.respond(f"{emojis.loading} Pulling from GitHub...")
         proc = await asyncio.create_subprocess_exec(
-            "git", "pull", "--stat",
+            "git", "pull", "origin", "main", "--stat",
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
             cwd=ROOT,
         )
