@@ -391,6 +391,11 @@ _orig_context_reply = commands.Context.reply
 async def safeReply(self, *args, **kwargs):
     try:
         return await _orig_context_reply(self, *args, **kwargs)
+    except discord.Forbidden:
+        try:
+            await self.message.add_reaction("\U0001f507")
+        except Exception:
+            pass
     except discord.HTTPException as e:
         if e.code == 50035:
             return await self.send(*args, **kwargs)
