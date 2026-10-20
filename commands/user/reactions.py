@@ -77,6 +77,11 @@ class ReactionsCog(commands.Cog):
     async def resolveName(self, userId, guild):
         uid = int(userId)
         user = (guild.get_member(uid) if guild else None) or self.bot.get_user(uid)
+        if user is None and guild:
+            try:
+                user = await guild.fetch_member(uid)
+            except Exception:
+                pass
         if user is None:
             try:
                 user = await self.bot.fetch_user(uid)

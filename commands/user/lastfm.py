@@ -209,7 +209,10 @@ class LastFMCog(commands.Cog):
             return await ctx.respond(f"{emojis.fail} Could not resolve album.")
 
         user_map = await db.allLastfm()
-        guild_users = [(m, *user_map[str(m.id)]) for m in ctx.guild.members if str(m.id) in user_map]
+        guild_users = []
+        async for m in ctx.guild.fetch_members(limit=None):
+            if str(m.id) in user_map:
+                guild_users.append((m, *user_map[str(m.id)]))
         if not guild_users:
             return await ctx.respond("No one in this server uses the bot.")
 

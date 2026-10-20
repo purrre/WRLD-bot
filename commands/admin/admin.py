@@ -10,7 +10,7 @@ import traceback
 import discord
 from discord.ext import commands
 
-from config import settings, emojis
+from config import settings, emojis, ROOT
 from utils.cache import cache, cache_manager
 from utils.database import db, Base
 from utils.functions import consoleLog, findClosestMatch, adminCheck, isBlacklistedUser, setRandomLyricStatus
@@ -24,6 +24,24 @@ class AdminCog(commands.Cog):
     async def restart(self, ctx):
         await ctx.respond("Restarting bot...")
         consoleLog("SYSTEM", f"restart initiated by {ctx.author}")
+        os.execv(sys.executable, ["python"] + sys.argv)
+
+    @adminCheck()
+    @commands.command(name="pull")
+    async def pull(self, ctx):
+        msg = await ctx.respond(f"{emojis.loading} Pulling from GitHub...")
+        proc = await asyncio.create_subprocess_exec(
+            "git", "pull", "--stat",
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            cwd=ROOT,
+        )
+        out, _ = await proc.communicate()
+        text = (out or b"").decode("utf-8", "replace").strip()
+        tail = "\n".join(text.splitlines()[-8:])[-1500:]
+        if proc.returncode != 0:
+            return await msg.edit(content=f"{emojis.fail} Pull failed:\n```\n{tail}\n```")
+        await msg.edit(content=f"```\n{tail}\n```\nRestarting...")
+        consoleLog("SYSTEM", f"pull+restart initiated by {ctx.author}")
         os.execv(sys.executable, ["python"] + sys.argv)
 
     @adminCheck()
