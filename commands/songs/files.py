@@ -25,7 +25,6 @@ class FilesCog(commands.Cog):
         if mode == "instrumental":
             return bool(parse_instrumentals(song))
         if mode == "ogfile":
-            # ponytail: file_names presence is a cheap proxy — fetch_og_files returns [] without it
             return bool(song.get("file_names") and str(song.get("file_names")).strip().lower() not in ("none", "n/a", "", "null"))
         return True
 

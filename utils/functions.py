@@ -99,7 +99,6 @@ async def httpcall(url, method="GET", paginate=False, expect_json=True, **kwargs
     current = url
     host = apiHost(url)
     try:
-        # ponytail: bounded loop + same-host check — API-supplied "next" URLs can't loop
         for _ in range(200):
             next_host = apiHost(current) if current else ""
             if not current or (next_host and next_host != host):
@@ -338,7 +337,6 @@ def fireAndForget(coro):
         pass
 
 async def send(ctx, **kwargs):
-    # ponytail: prefix ctx can't do ephemeral (respond pops it) — auto-delete instead of leaking publicly
     if not isinstance(ctx, discord.ApplicationContext):
         kwargs.pop("ephemeral", None)
         kwargs.setdefault("delete_after", 10)
@@ -393,7 +391,7 @@ async def safeReply(self, *args, **kwargs):
         return await _orig_context_reply(self, *args, **kwargs)
     except discord.Forbidden:
         try:
-            await self.message.add_reaction("\U0001f507")
+            await self.message.add_reaction("🔇")
         except Exception:
             pass
     except discord.HTTPException as e:
@@ -401,7 +399,6 @@ async def safeReply(self, *args, **kwargs):
             return await self.send(*args, **kwargs)
         raise
 
-# ponytail: spoofs a Discord Android client identify — gray-area ToS, kept because the
 async def mobileIdentify(self):
     payload = {
         "op": self.IDENTIFY,

@@ -318,7 +318,6 @@ def parse_instrumentals(song):
             if name:
                 names.append(name)
         elif not any(p in line.lower() for p in ("loop", "midi", "stems", "kit")):
-            # ponytail: lines without "Instrumental:" prefix but also not loop/midi/stems/kit
             if not names:
                 names.append(line)
     return names
@@ -326,7 +325,6 @@ def parse_instrumentals(song):
 def _match_instrumental_items(items, query):
     stem = query.rsplit(".", 1)[0].lower()
     exact = [i for i in items if str(i.get("name", "")).rsplit(".", 1)[0].lower() == stem]
-    # ponytail: don't return early on exact matches — a directory named "Wasted" matches
     substring = [i for i in items if stem in str(i.get("name", "")).lower() and i not in exact]
     return exact + substring
 
@@ -337,7 +335,6 @@ async def _browse_instrumental(query):
     items = await browse_files(query)
     if items:
         return items, query
-    # ponytail: browse API does phrase matching, multi-word queries often return 0;
     words = query.split()
     if len(words) > 1:
         first = words[0]
@@ -554,7 +551,6 @@ def build_song_container(song, include_details=True, mode="info"):
         header_lines.append(f"-# Details: `{details}`")
     full_img = image_url(song)
     header_text = TextDisplay("\n".join(header_lines))
-    # ponytail: Section requires an accessory (Thumbnail/Button); when a song has no
     if full_img:
         return Section(header_text, accessory=Thumbnail(full_img))
     return header_text
@@ -744,7 +740,6 @@ async def fetch_snippet_urls(song):
                     found_ext = found_ext or ext
         if urls:
             return urls, found_ext
-    # ponytail: browse search returns Snippets/ directories, not the .mp4/.mov inside;
     for query in song_queries(song):
         items = await browse_files(query)
         for item in items:
@@ -805,7 +800,6 @@ async def fetch_urls(song, ext=None):
             return list(dict.fromkeys(urls)), found_ext
     return [], None
 
-# ponytail: bounds concurrent in-memory file buffers — each can be as large as upload_limit
 _send_file_sem = asyncio.Semaphore(4)
 
 async def send_file(interaction, url, filename, kind, session=None):
@@ -814,7 +808,6 @@ async def send_file(interaction, url, filename, kind, session=None):
             session = await getSession()
         data = io.BytesIO()
         try:
-            # ponytail: total=300 gives large files room to download; sock_read=30 catches dead connections
             timeout = aiohttp.ClientTimeout(total=300, sock_read=30, sock_connect=10)
             async with session.get(url, timeout=timeout) as response:
                 if response.status != 200:
@@ -978,7 +971,6 @@ def score_candidate(item, terms, *, require_sessions_hint=False):
         t = normalizeText(term)
         if not t:
             continue
-        # ponytail: exact name match scores much higher than substring —
         if t == name:
             score += 15
         elif t in name:
@@ -1021,7 +1013,6 @@ async def find_best_session_asset(query, *, kind):
                 if ext != ".zip" or not path.startswith("Studio Sessions/"):
                     continue
                 score = score_candidate(item, search_terms, require_sessions_hint=True)
-                # ponytail: prefer ProTools/Album Deliverables over Multi-Track Stems/Trackouts
                 path_lower = path.lower()
                 if "protools" in path_lower or "album deliverables" in path_lower:
                     score += 5
@@ -1034,7 +1025,6 @@ async def find_best_session_asset(query, *, kind):
                 candidates_by_path[path] = (score, item)
     if not candidates_by_path:
         return [], matched_song
-    # ponytail: filter by era folder when song has era info; ceiling: if era data is wrong, returns nothing
     era_name = None
     if matched_song:
         era = matched_song.get("era")

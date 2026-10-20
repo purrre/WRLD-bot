@@ -48,7 +48,6 @@ class SearchCog(commands.Cog):
         if not isinstance(gb, dict) or not any(gb.values()):
             return await interaction.response.send_message(f"{emojis.fail} No groupbuy information available for this song.", ephemeral=True)
         era = song.get("era")
-        # ponytail: adapt the song payload into the groupbuy-entry shape create_groupbuy_container expects
         entry = {
             "gb": gb,
             "title": song.get("name", "Unknown"),

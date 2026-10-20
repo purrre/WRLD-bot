@@ -122,7 +122,6 @@ class LastFMCog(commands.Cog):
         track_plays = str(track_info.get("userplaycount", "0"))
         total_plays = str(responses[1].get("user", {}).get("playcount", "0"))
         album_info = responses[2] if album else None
-        # ponytail: recenttracks album/image are empty for untagged scrobbles — fall back
         if not album:
             album = str(track_info.get("album", {}).get("title", ""))
             if album:
