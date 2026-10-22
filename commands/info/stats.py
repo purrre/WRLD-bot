@@ -21,6 +21,12 @@ class StatsCog(commands.Cog):
         snippets_sent = row.get("snippets_sent", 0)
         covers_found = row.get("covers_found", 0)
         total_finds = track_searches + leaks_found + session_zips_found + session_edits_found + snippets_sent + covers_found
+        rx_totals = await db.reactionTotals()
+        rx_kinds = [("sobs", "Sobs"), ("skulls", "Skulls"), ("flames", "Flames"), ("hearts", "Hearts"), ("clowns", "Clowns")]
+        rx_lines = "\n".join(
+            f"-# {'<:reply:1407148693802455120>' if i == len(rx_kinds) - 1 else '<:reply2:1407148805287182348>'} {label} Watched: **{rx_totals[kind]:,}**"
+            for i, (kind, label) in enumerate(rx_kinds)
+        )
         stats_text = (
             f"Commands Run: **{row.get('commands_run', 0):,}** (prefix) + **{row.get('slash_commands_run', 0):,}** (slash)\n\n"
             f"Total Finds: **{total_finds:,}**\n"
@@ -30,6 +36,8 @@ class StatsCog(commands.Cog):
             f"-# <:reply2:1407148805287182348> Session Edits Found: **{session_edits_found:,}**\n"
             f"-# <:reply2:1407148805287182348> Snippets Found: **{snippets_sent:,}**\n"
             f"-# <:reply:1407148693802455120> Covers Found: **{covers_found:,}**\n\n"
+            f"Reactions Watched: **{sum(rx_totals.values()):,}**\n"
+            f"{rx_lines}\n\n"
             f"Random Songs Fetched: **{row.get('random_songs_found', 0):,}**\n"
             f"Lyrics Searched: **{row.get('lyrics_searched', 0):,}**\n"
             f"Random Lyrics Fetched: **{row.get('random_lyrics_found', 0):,}**"

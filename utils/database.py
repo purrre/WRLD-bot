@@ -323,6 +323,12 @@ class Database:
             )).all()
             return [(uid, val) for uid, val in rows]
 
+    async def reactionTotals(self):
+        cols = [getattr(ReactionStats, f"{k}_rx") for k in REACTION_KINDS_DB]
+        async with self.session() as s:
+            row = (await s.execute(select(*(func.coalesce(func.sum(c), 0) for c in cols)))).one()
+            return {k: int(v) for k, v in zip(REACTION_KINDS_DB, row)}
+
     async def reputationLeaderboard(self, limit=10, bottom=False):
         async with self.session() as s:
             rows = (await s.execute(
