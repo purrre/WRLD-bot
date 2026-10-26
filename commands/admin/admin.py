@@ -118,9 +118,6 @@ class AdminCog(commands.Cog):
     @adminCheck()
     @commands.command(name="eval")
     async def eval(self, ctx, *, code: str):
-        owner = (await self.bot.application_info()).owner
-        if ctx.author.id != owner.id:
-            return await ctx.respond(f"{emojis.fail} Bot owner only.", ephemeral=True)
         if code.startswith("```") and code.endswith("```"):
             code = code[3:-3]
             if code.startswith("python\n"):
