@@ -487,10 +487,14 @@ def build_notes_button(song):
     return btn
 
 def image_url(song):
-    img = song.get("image_url")
-    if img and img.startswith("/"):
-        return f"{endpoints.jwa}{img}"
-    return img
+    img = str(song.get("image_url") or "").strip()
+    if not img or img.lower() in INVALID_VALS:
+        return None
+    if img.startswith("/"):
+        img = f"{endpoints.jwa}{img}"
+    if img.startswith(("http://", "https://")):
+        return img
+    return None
 
 def song_title(song):
     return build_song_header(song)
@@ -895,6 +899,7 @@ class SnipButton(discord.ui.Button):
             title=self.song.get("name", "Snippets"),
             description=f"-# {len(shown)} snippet{'s' if len(shown) != 1 else ''}",
         )
+        cont.add_text("-# This command sucks and will be reworked soon.")
         cont.add_item(MediaGallery(*[discord.MediaGalleryItem(url) for url in shown]))
         await interaction.followup.send(view=createView(cont), ephemeral=True)
         await db.incrementStat("snippets_sent", amount=len(shown))
@@ -1060,5 +1065,7 @@ def build_session_asset_view(*, title, all_titles=None, category, path, song, bu
     buttons = [button]
     if extra_buttons:
         buttons.extend(extra_buttons)
+    cont.add_item(ActionRow(*buttons))
+    return createView(cont, viewClass=PersistentSongView)
     cont.add_item(ActionRow(*buttons))
     return createView(cont, viewClass=PersistentSongView)

@@ -83,7 +83,19 @@ class ServerCog(commands.Cog):
     async def purge(self, ctx, amount: int):
         if amount < 1 or amount > 100:
             return await ctx.respond(f"{emojis.fail} Amount must be between 1 and 100.", ephemeral=True)
-        deleted = await ctx.channel.purge(limit=amount + 1)
+        bot_perms = ctx.channel.permissions_for(ctx.guild.me)
+        if not bot_perms.manage_messages or not bot_perms.read_message_history:
+            return await ctx.respond(
+                f"{emojis.fail} I need the **Manage Messages** and **Read Message History** permissions in this channel to purge.",
+                ephemeral=True,
+            )
+        try:
+            deleted = await ctx.channel.purge(limit=amount + 1)
+        except discord.Forbidden:
+            return await ctx.respond(
+                f"{emojis.fail} I'm missing the **Manage Messages** permission in this channel.",
+                ephemeral=True,
+            )
         await ctx.respond(f"{emojis.success} Purged {len(deleted) - 1} messages.", delete_after=6)
 
     @commands.guild_only()

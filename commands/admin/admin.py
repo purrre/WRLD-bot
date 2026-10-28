@@ -13,7 +13,7 @@ from discord.ext import commands
 from config import settings, emojis, ROOT
 from utils.cache import cache, cache_manager
 from utils.database import db, Base
-from utils.functions import consoleLog, findClosestMatch, adminCheck, isBlacklistedUser, setRandomLyricStatus
+from utils.functions import consoleLog, findClosestMatch, adminCheck, isBlacklistedUser, setRandomLyricStatus, errorLogBuffer
 
 class AdminCog(commands.Cog):
     def __init__(self, bot):
@@ -215,6 +215,152 @@ class AdminCog(commands.Cog):
         await self.bot.db.removeBan(user.id)
         await ctx.respond(f"{emojis.success} Unbanned {user.mention}")
         consoleLog("ADMIN", f"{ctx.author} unbanned {user}")
+
+    @adminCheck()
+    @commands.command(name="guilds")
+    async def guilds(self, ctx):
+        guilds = sorted(self.bot.guilds, key=lambda g: g.member_count or 0, reverse=True)
+        if not guilds:
+            return await ctx.respond(f"{emojis.fail} Bot is not in any guilds.")
+        lines = []
+        for g in guilds:
+            prefix = db.getPrefix(g.id) or settings.prefix
+            lines.append(f"**{g.name}** (`{g.id}`)\n-# {g.member_count or 0} members | prefix `{prefix}`")
+        chunks, current = [], ""
+        for line in lines:
+            candidate = f"{current}\n\n{line}" if current else line
+            if len(candidate) > 1800:
+                chunks.append(current)
+                current = line
+            else:
+                current = candidate
+        chunks.append(current)
+        header = f"{emojis.list} **{len(guilds)} guild{'s' if len(guilds) != 1 else ''}**\n\n"
+        await ctx.respond(header + chunks[0])
+        for chunk in chunks[1:]:
+            await ctx.send(chunk)
+
+    @adminCheck()
+    @commands.command(name="guildinfo", aliases=["ginfo"])
+    async def guildinfo(self, ctx, guild_id: int):
+        guild = self.bot.get_guild(guild_id)
+        if guild is None:
+            return await ctx.respond(f"{emojis.fail} Not in a guild with ID `{guild_id}`.", ephemeral=True)
+        owner = guild.owner or self.bot.get_user(guild.owner_id)
+        owner_text = f"{owner} (`{guild.owner_id}`)" if owner else f"`{guild.owner_id}`"
+        prefix = db.getPrefix(guild.id) or settings.prefix
+        antiaudio = await db.isAntiaudioEnabled(guild.id)
+        disabled = await db.disabledCommands(guild.id)
+        lines = [
+            f"## {guild.name}",
+            f"**ID:** `{guild.id}`",
+            f"**Owner:** {owner_text}",
+            f"**Members:** {guild.member_count or 'N/A'}",
+            f"**Channels:** {len(guild.channels)}",
+            f"**Created:** {discord.utils.format_dt(guild.created_at, 'D')}",
+            f"**Prefix:** `{prefix}`",
+            f"**Anti-audio:** {'enabled' if antiaudio else 'disabled'}",
+            f"**Disabled cmds:** {', '.join(f'`{c}`' for c in disabled) if disabled else 'none'}",
+        ]
+        await ctx.respond("\n".join(lines))
+
+    @adminCheck()
+    @commands.command(name="leave")
+    async def leave(self, ctx, guild_id: int):
+        guild = self.bot.get_guild(guild_id)
+        if guild is None:
+            return await ctx.respond(f"{emojis.fail} Not in a guild with ID `{guild_id}`.", ephemeral=True)
+        name, gid = guild.name, guild.id
+        await guild.leave()
+        consoleLog("ADMIN", f"{ctx.author} forced leave from {name} ({gid})")
+        await ctx.respond(f"{emojis.success} Left **{name}** (`{gid}`)")
+
+    @adminCheck()
+    @commands.command(name="guildinvite", aliases=["ginvite"])
+    async def guildinvite(self, ctx, guild_id: int):
+        guild = self.bot.get_guild(guild_id)
+        if guild is None:
+            return await ctx.respond(f"{emojis.fail} Not in a guild with ID `{guild_id}`.", ephemeral=True)
+        usable = [c for c in guild.text_channels if c.permissions_for(guild.me).create_instant_invite]
+        channel = guild.system_channel if guild.system_channel in usable else (usable[0] if usable else None)
+        if channel is None:
+            return await ctx.respond(f"{emojis.fail} No invite-capable channel found in **{guild.name}**.", ephemeral=True)
+        try:
+            invite = await channel.create_invite(max_age=3600, max_uses=1, reason=f"invite created for admin {ctx.author}")
+        except discord.Forbidden:
+            return await ctx.respond(f"{emojis.fail} Missing **Create Invite** permission in **{guild.name}**.", ephemeral=True)
+        await ctx.respond(f"{emojis.success} Invite for **{guild.name}** ({invite.channel.name}): {invite.url}", ephemeral=True)
+
+    @adminCheck()
+    @commands.command(name="servercfg", aliases=["scfg"])
+    async def servercfg(self, ctx, guild_id: int, action: str = "", *, value: str = ""):
+        guild = self.bot.get_guild(guild_id)
+        if guild is None:
+            return await ctx.respond(f"{emojis.fail} Not in a guild with ID `{guild_id}`.", ephemeral=True)
+        if not action:
+            prefix = db.getPrefix(guild.id) or settings.prefix
+            antiaudio = await db.isAntiaudioEnabled(guild.id)
+            disabled = await db.disabledCommands(guild.id)
+            lines = [
+                f"## Config: {guild.name}",
+                f"**Prefix:** `{prefix}`",
+                f"**Anti-audio:** {'enabled' if antiaudio else 'disabled'}",
+                f"**Disabled cmds:** {', '.join(f'`{c}`' for c in disabled) if disabled else 'none'}",
+                f"-# Actions: `servercfg {guild_id} prefix <value|clear>` | `antiaudio on|off` | `disable|enable <cmd>`",
+            ]
+            return await ctx.respond("\n".join(lines))
+        action = action.lower()
+        if action == "prefix":
+            v = value.strip()
+            if not v:
+                return await ctx.respond(f"{emojis.fail} Usage: `servercfg {guild_id} prefix <value|clear>`", ephemeral=True)
+            if v.lower() in ("clear", "reset"):
+                await db.clearPrefix(guild.id)
+                return await ctx.respond(f"{emojis.success} Prefix reset to `{settings.prefix}` in **{guild.name}**")
+            if len(v) > 6:
+                return await ctx.respond(f"{emojis.fail} Prefix must be 6 characters or fewer.", ephemeral=True)
+            await db.setPrefix(guild.id, v)
+            return await ctx.respond(f"{emojis.success} Prefix set to `{v}` in **{guild.name}**")
+        if action == "antiaudio":
+            v = value.strip().lower()
+            if v not in ("on", "off", "enable", "disable"):
+                return await ctx.respond(f"{emojis.fail} Usage: `servercfg {guild_id} antiaudio on|off`", ephemeral=True)
+            enabled = v in ("on", "enable")
+            await db.setAntiaudio(guild.id, enabled)
+            return await ctx.respond(f"{emojis.success} Anti-audio **{'enabled' if enabled else 'disabled'}** in **{guild.name}**")
+        if action in ("disable", "enable"):
+            cmd_name = value.strip()
+            if not cmd_name:
+                return await ctx.respond(f"{emojis.fail} Usage: `servercfg {guild_id} {action} <command>`", ephemeral=True)
+            cmd = self.bot.get_command(cmd_name)
+            if not cmd:
+                return await ctx.respond(f"{emojis.fail} Command `{cmd_name}` not found.", ephemeral=True)
+            name = cmd.qualified_name
+            if action == "disable":
+                await db.disableCommand(guild.id, name)
+            else:
+                await db.enableCommand(guild.id, name)
+            return await ctx.respond(f"{emojis.success} Command `{name}` **{action}d** in **{guild.name}**")
+        await ctx.respond(f"{emojis.fail} Unknown action `{action}`. Use `prefix`, `antiaudio`, `disable`, or `enable`.", ephemeral=True)
+
+    @adminCheck()
+    @commands.command(name="errors")
+    async def errors(self, ctx, amount: int = 10):
+        if amount < 1 or amount > 50:
+            return await ctx.respond(f"{emojis.fail} Amount must be between 1 and 50.", ephemeral=True)
+        entries = list(errorLogBuffer)[-amount:]
+        if not entries:
+            return await ctx.respond(f"{emojis.success} No errors logged this session.")
+        await ctx.respond(f"**Last {len(entries)} logged error{'s' if len(entries) != 1 else ''}**\n```\n{'\n'.join(entries)[-1800:]}\n```")
+
+    @adminCheck()
+    @commands.command(name="topguilds")
+    async def topguilds(self, ctx):
+        guilds = sorted(self.bot.guilds, key=lambda g: g.member_count or 0, reverse=True)[:10]
+        if not guilds:
+            return await ctx.respond(f"{emojis.fail} Bot is not in any guilds.")
+        lines = [f"{i + 1}. **{g.name}** - {g.member_count or 0:,} members (`{g.id}`)" for i, g in enumerate(guilds)]
+        await ctx.respond(f"{emojis.list} **Top servers by member count**\n" + "\n".join(lines))
 
 def setup(bot):
     bot.add_cog(AdminCog(bot))

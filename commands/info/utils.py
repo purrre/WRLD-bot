@@ -38,7 +38,7 @@ class UtilsCog(commands.Cog):
         self.region = None
         self.country = None
 
-    @bridge.bridge_command(usage='ping', description='Pings juicewrldapi to check the status', aliases=['p'])
+    @bridge.bridge_command(usage='ping', description='Pings juicewrldapi to check the status', aliases=['p', 'jwa'])
     @commands.cooldown(1, 10, commands.BucketType.user)
     async def ping(self, ctx):
         msg = await ctx.respond(random.choice(LOADING_EMOJIS))
@@ -72,7 +72,7 @@ class UtilsCog(commands.Cog):
             cont.add_text("\n".join(header_lines))
         cont.add_separator(divider=True)
         prefix = getattr(ctx, "prefix", None) or settings.prefix
-        cont.add_text(f"-# Use `{prefix}jwa` for classic layout\n-# Use `{prefix}wrld` for bot ping")
+        cont.add_text(f"-# Use `{prefix}wrld` for bot ping")
         view = createView(cont)
         interaction = getattr(ctx, "interaction", None)
         if interaction is not None:
@@ -81,41 +81,43 @@ class UtilsCog(commands.Cog):
             await msg.delete()
         await ctx.respond(view=view)
 
-    @bridge.bridge_command(name='jwa', usage='jwa', description='Pings juicewrldapi (classic embed layout)')
-    @commands.cooldown(1, 10, commands.BucketType.user)
-    async def jwa(self, ctx):
-        msg = await ctx.respond(embed=await loading('PING'))
-        if isinstance(msg, discord.Interaction):
-            msg = await msg.original_response()
-        if not self.country or self.country.lower() == 'unknown':
-            ok, ip = await httpcall('https://api.ipify.org', expect_json=False)
-            if ok:
-                ok, r = await httpcall(f'https://ipinfo.io/{ip.strip()}/json')
-                if ok and isinstance(r, dict):
-                    self.country = r.get('country', 'unknown')
-                    self.region = r.get('region', '')
-        embed = discord.Embed(title='juicewrldapi Status', url=endpoints.jwa, color=colors.main)
-        hosts = {
-            'main': (endpoints.jwa, ['/']),
-            'api': (endpoints.jwa, ['/juicewrld/']),
-            'media (master)': (endpoints.media, ['/status/'])
-        }
-        session = await getSession()
-        for name, ping_ms in await _probe(session, hosts):
-            if ping_ms is not None:
-                embed.add_field(
-                    name=f'<:status_online:1443125660552921142> {name.title()}',
-                    value=f'Ping: {ping_ms:.2f} ms',
-                    inline=True
-                )
-            else:
-                embed.add_field(
-                    name=f'<:status_offline:1443125840501014572> {name.title()}',
-                    value=f"Couldn't reach host :(",
-                    inline=True
-                )
-        embed.set_footer(text=f'{self.bot.user.name} | Pinged from {self.region}, {self.country}', icon_url=self.bot.user.avatar.url)
-        await msg.edit(embed=embed)
+    # NOTE: `jwa` command disabled - 'jwa' is now an alias of `ping`.
+    # Uncomment this block to restore the classic embed layout.
+    # @bridge.bridge_command(name='jwa', usage='jwa', description='Pings juicewrldapi (classic embed layout)')
+    # @commands.cooldown(1, 10, commands.BucketType.user)
+    # async def jwa(self, ctx):
+    #     msg = await ctx.respond(embed=await loading('PING'))
+    #     if isinstance(msg, discord.Interaction):
+    #         msg = await msg.original_response()
+    #     if not self.country or self.country.lower() == 'unknown':
+    #         ok, ip = await httpcall('https://api.ipify.org', expect_json=False)
+    #         if ok:
+    #             ok, r = await httpcall(f'https://ipinfo.io/{ip.strip()}/json')
+    #             if ok and isinstance(r, dict):
+    #                 self.country = r.get('country', 'unknown')
+    #                 self.region = r.get('region', '')
+    #     embed = discord.Embed(title='juicewrldapi Status', url=endpoints.jwa, color=colors.main)
+    #     hosts = {
+    #         'main': (endpoints.jwa, ['/']),
+    #         'api': (endpoints.jwa, ['/juicewrld/']),
+    #         'media (master)': (endpoints.media, ['/status/'])
+    #     }
+    #     session = await getSession()
+    #     for name, ping_ms in await _probe(session, hosts):
+    #         if ping_ms is not None:
+    #             embed.add_field(
+    #                 name=f'<:status_online:1443125660552921142> {name.title()}',
+    #                 value=f'Ping: {ping_ms:.2f} ms',
+    #                 inline=True
+    #             )
+    #         else:
+    #             embed.add_field(
+    #                 name=f'<:status_offline:1443125840501014572> {name.title()}',
+    #                 value=f"Couldn't reach host :(",
+    #                 inline=True
+    #             )
+    #     embed.set_footer(text=f'{self.bot.user.name} | Pinged from {self.region}, {self.country}', icon_url=self.bot.user.avatar.url)
+    #     await msg.edit(embed=embed)
 
     @bridge.bridge_command(usage='apistats', description='Shows basic juicewrldapi statistics')
     @commands.cooldown(1, 10, commands.BucketType.user)

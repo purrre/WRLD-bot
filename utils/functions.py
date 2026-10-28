@@ -6,6 +6,8 @@ import random
 import re
 import sys
 import urllib.parse
+from collections import deque
+from datetime import datetime
 
 import aiohttp
 import discord
@@ -40,8 +42,13 @@ def getLogger(name):
         log.addHandler(handler)
     return log
 
+errorLogBuffer = deque(maxlen=100)
+
 def consoleLog(origin, message, type="info"):
-    getLogger(origin).log(levels.get(type.lower(), logging.INFO), message)
+    level = levels.get(type.lower(), logging.INFO)
+    getLogger(origin).log(level, message)
+    if level >= logging.WARNING:
+        errorLogBuffer.append(f"{datetime.now().strftime('%m-%d %H:%M:%S')} [{origin}] {message}")
 
 jsonCache = {}
 
