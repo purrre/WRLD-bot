@@ -1,7 +1,7 @@
 import os
 
 from sqlalchemy import (
-    Column, String, Integer, Text, DateTime, UniqueConstraint, func, select, delete,
+    Column, String, Integer, Text, DateTime, UniqueConstraint, func, select, delete, text,
 )
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
@@ -72,6 +72,15 @@ class BotStats(Base):
         locals()[_name] = Column(Integer, server_default="0", nullable=False)
     del _name
 
+class DbCommit(Base):
+    __tablename__ = "db_commits"
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    description = Column(Text, nullable=False)
+    undone = Column(Integer, server_default="0", nullable=False)
+    undo_type = Column(String(64))
+    undo_data = Column(Text)
+    timestamp = Column(DateTime, server_default=func.now())
+
 def normalizeSqliteUrl(url):
     prefix = "sqlite+aiosqlite:///"
     if url.startswith(prefix):
@@ -118,6 +127,12 @@ class Database:
     async def setup(self):
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            result = await conn.execute(text("PRAGMA table_info(db_commits)"))
+            cols = {row[1] for row in result}
+            if "undo_type" not in cols:
+                await conn.execute(text("ALTER TABLE db_commits ADD COLUMN undo_type VARCHAR(64)"))
+            if "undo_data" not in cols:
+                await conn.execute(text("ALTER TABLE db_commits ADD COLUMN undo_data TEXT"))
             await conn.execute(
                 sqlite_insert(BotStats.__table__).values(id=1).on_conflict_do_nothing(index_elements=["id"])
             )
@@ -328,6 +343,65 @@ class Database:
         async with self.session() as s:
             row = (await s.execute(select(*(func.coalesce(func.sum(c), 0) for c in cols)))).one()
             return {k: int(v) for k, v in zip(REACTION_KINDS_DB, row)}
+
+    async def upsertReactionColumn(self, userId, column, value):
+        t = ReactionStats.__table__
+        async with self.session() as s:
+            stmt = sqlite_insert(t).values(user_id=str(userId), **{column: value})
+            stmt = stmt.on_conflict_do_update(index_elements=["user_id"], set_={column: value})
+            await s.execute(stmt)
+            await s.commit()
+
+    async def addReactionColumn(self, userId, column, amount):
+        t = ReactionStats.__table__
+        async with self.session() as s:
+            stmt = sqlite_insert(t).values(user_id=str(userId), **{column: amount})
+            stmt = stmt.on_conflict_do_update(index_elements=["user_id"], set_={column: getattr(t.c, column) + amount})
+            await s.execute(stmt)
+            await s.commit()
+
+    async def clearReactionStats(self, userId):
+        t = ReactionStats.__table__
+        cols = ["reputation"] + [f"{k}_{d}" for k in REACTION_KINDS_DB for d in ("rx", "tx")]
+        async with self.session() as s:
+            stmt = sqlite_insert(t).values(user_id=str(userId))
+            stmt = stmt.on_conflict_do_update(index_elements=["user_id"], set_={c: 0 for c in cols})
+            await s.execute(stmt)
+            await s.commit()
+
+    async def setBotStatDirect(self, column, value):
+        if column not in statColumns:
+            raise ValueError(f"unknown stat column: {column!r}")
+        async with self.session() as s:
+            stmt = sqlite_insert(BotStats.__table__).values(id=1, **{column: value})
+            stmt = stmt.on_conflict_do_update(index_elements=["id"], set_={column: value})
+            await s.execute(stmt)
+            await s.commit()
+
+    async def addDbCommit(self, description, undo_type=None, undo_data=None):
+        async with self.session() as s:
+            s.add(DbCommit(description=description, undo_type=undo_type, undo_data=undo_data))
+            await s.commit()
+            return (await s.execute(select(DbCommit).order_by(DbCommit.id.desc()).limit(1))).scalar_one()
+
+    async def getDbCommits(self, limit=20):
+        async with self.session() as s:
+            rows = (await s.execute(select(DbCommit).order_by(DbCommit.id.desc()).limit(limit))).scalars()
+            return [{"id": r.id, "description": r.description, "undone": bool(r.undone), "undo_type": r.undo_type, "undo_data": r.undo_data, "timestamp": r.timestamp} for r in rows]
+
+    async def getDbCommit(self, commit_id):
+        async with self.session() as s:
+            r = (await s.execute(select(DbCommit).where(DbCommit.id == commit_id))).scalar_one_or_none()
+            if r is None:
+                return None
+            return {"id": r.id, "description": r.description, "undone": bool(r.undone), "undo_type": r.undo_type, "undo_data": r.undo_data, "timestamp": r.timestamp}
+
+    async def markDbCommitUndone(self, commit_id):
+        async with self.session() as s:
+            await s.execute(
+                DbCommit.__table__.update().where(DbCommit.id == commit_id).values(undone=1)
+            )
+            await s.commit()
 
     async def reputationLeaderboard(self, limit=10, bottom=False):
         async with self.session() as s:
