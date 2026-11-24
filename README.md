@@ -13,7 +13,7 @@ it's free to use, and it'll stay that way. if you just want the public bot you c
 and move on. if you want to run your own copy, keep reading. if you're new to python dont bother cause i dont want to
 help you
 
-this open sourced version includes slightly less features than my running one (file tagging, ai commands, dbadmin) because they are too reliant on my own services. this open source version is purely reliant on only my own `wrld.pure0.lol` endpoints. juicewrldapi is much more reliable than i am
+this open sourced version includes slightly less features than my running one (file tagging, ai commands) because they are too reliant on my own services. this open source version is purely reliant on only my own `wrld.pure0.lol` endpoints. juicewrldapi is much more reliable than i am
 
 ## what changed from the old version
 
