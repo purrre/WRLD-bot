@@ -23,7 +23,6 @@ def reaction_label(col):
     return col
 
 
-# --- Undo dispatcher (reads from DB, no in-memory state needed) ---
 
 async def execute_undo(undo_type, undo_data_str):
     if undo_type is None or undo_data_str is None:
@@ -55,7 +54,6 @@ async def execute_undo(undo_type, undo_data_str):
         raise ValueError(f"unknown undo type: {undo_type}")
 
 
-# --- Modals ---
 
 class UserIdModal(discord.ui.Modal):
     def __init__(self, title, callback_fn):
@@ -166,7 +164,6 @@ async def main_container():
     return cont
 
 
-# --- Main DB Panel (CV2) ---
 
 class DbPanel(TimeoutView):
     def __init__(self, bot, user_id):
@@ -239,7 +236,6 @@ class DbPanel(TimeoutView):
             return await interaction.response.send_message(f"{emojis.fail} Undo failed: `{e}`", ephemeral=True)
         await self._show_commits(interaction)
 
-    # ---- REACTIONS ----
 
     async def _rx_load(self, interaction, uid_str):
         if not uid_str.isdigit():
@@ -343,7 +339,6 @@ class DbPanel(TimeoutView):
         )
         await self._show_commits(interaction)
 
-    # ---- GRAILS ----
 
     async def _grail_load(self, interaction, uid_str):
         if not uid_str.isdigit():
@@ -402,7 +397,6 @@ class DbPanel(TimeoutView):
         )
         await self._show_commits(interaction)
 
-    # ---- BOT STATS ----
 
     async def _bs_render(self, interaction):
         stats = await db.getStats()
@@ -467,7 +461,6 @@ class DbPanel(TimeoutView):
         )
         await self._show_commits(interaction)
 
-    # ---- BANS ----
 
     async def _ban_load(self, interaction, uid_str):
         if not uid_str.isdigit():
@@ -513,7 +506,6 @@ class DbPanel(TimeoutView):
         await self._show_commits(interaction)
 
 
-# --- Cog ---
 
 class DbAdminCog(commands.Cog):
     def __init__(self, bot):
