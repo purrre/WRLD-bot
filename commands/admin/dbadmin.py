@@ -6,7 +6,7 @@ from discord.ext import commands
 from discord.ui import ActionRow, Button, Select
 
 from config import emojis, NOT_YOURS
-from utils.components import createContainer, TimeoutView
+from utils.components import createContainer, createView, TimeoutView
 from utils.database import db, REACTION_KINDS_DB, statColumns
 from utils.functions import adminCheck
 
@@ -21,6 +21,22 @@ def reaction_label(col):
         kind, direction = parts
         return f"{kind.title()} ({'received' if direction == 'rx' else 'given'})"
     return col
+
+
+async def resolve_user(bot, uid_str):
+    if not uid_str:
+        return None
+    try:
+        uid = int(uid_str)
+    except (ValueError, TypeError):
+        return None
+    user = bot.get_user(uid)
+    if user is None:
+        try:
+            user = await bot.fetch_user(uid)
+        except Exception:
+            return None
+    return user
 
 
 
@@ -287,6 +303,8 @@ class DbPanel(TimeoutView):
             f"Set {reaction_label(col)} to {val:,} for user {uid}",
             undo_type="reaction_set",
             undo_data=json.dumps({"uid": uid, "col": col, "old": old}),
+            author_id=self.user_id,
+            target_id=uid,
         )
         await self._show_commits(interaction)
 
@@ -306,6 +324,8 @@ class DbPanel(TimeoutView):
             f"Added {val:,} {reaction_label(col)} to user {uid}",
             undo_type="reaction_add",
             undo_data=json.dumps({"uid": uid, "col": col, "delta": val}),
+            author_id=self.user_id,
+            target_id=uid,
         )
         await self._show_commits(interaction)
 
@@ -325,6 +345,8 @@ class DbPanel(TimeoutView):
             f"Removed {val:,} {reaction_label(col)} from user {uid}",
             undo_type="reaction_add",
             undo_data=json.dumps({"uid": uid, "col": col, "delta": -val}),
+            author_id=self.user_id,
+            target_id=uid,
         )
         await self._show_commits(interaction)
 
@@ -336,6 +358,8 @@ class DbPanel(TimeoutView):
             f"Cleared all reactions for user {uid}",
             undo_type="reaction_clear",
             undo_data=json.dumps({"uid": uid, "old_stats": old_stats}),
+            author_id=self.user_id,
+            target_id=uid,
         )
         await self._show_commits(interaction)
 
@@ -370,6 +394,8 @@ class DbPanel(TimeoutView):
             f"Added grail '{song}' to user {uid}",
             undo_type="grail_add",
             undo_data=json.dumps({"uid": uid, "song": song}),
+            author_id=self.user_id,
+            target_id=uid,
         )
         await self._show_commits(interaction)
 
@@ -383,6 +409,8 @@ class DbPanel(TimeoutView):
             f"Removed grail '{song}' from user {uid}",
             undo_type="grail_remove",
             undo_data=json.dumps({"uid": uid, "song": song}),
+            author_id=self.user_id,
+            target_id=uid,
         )
         await self._show_commits(interaction)
 
@@ -394,6 +422,8 @@ class DbPanel(TimeoutView):
             f"Cleared all grails for user {uid}",
             undo_type="grail_clear",
             undo_data=json.dumps({"uid": uid, "old_grails": old_grails}),
+            author_id=self.user_id,
+            target_id=uid,
         )
         await self._show_commits(interaction)
 
@@ -439,6 +469,7 @@ class DbPanel(TimeoutView):
             f"Set {col} to {val:,}",
             undo_type="botstat_set",
             undo_data=json.dumps({"col": col, "old": old}),
+            author_id=self.user_id,
         )
         await self._show_commits(interaction)
 
@@ -458,6 +489,7 @@ class DbPanel(TimeoutView):
             f"Added {val:,} to {col}",
             undo_type="botstat_add",
             undo_data=json.dumps({"col": col, "delta": val}),
+            author_id=self.user_id,
         )
         await self._show_commits(interaction)
 
@@ -491,6 +523,8 @@ class DbPanel(TimeoutView):
             f"Banned user {uid} ({reason})",
             undo_type="ban",
             undo_data=json.dumps({"uid": uid}),
+            author_id=self.user_id,
+            target_id=uid,
         )
         await self._show_commits(interaction)
 
@@ -502,6 +536,8 @@ class DbPanel(TimeoutView):
             f"Unbanned user {uid}",
             undo_type="unban",
             undo_data=json.dumps({"uid": uid, "reason": reason}),
+            author_id=self.user_id,
+            target_id=uid,
         )
         await self._show_commits(interaction)
 
@@ -524,14 +560,43 @@ class DbAdminCog(commands.Cog):
 
     @adminCheck()
     @dbadmin.command(name="c", aliases=["commits", "history", "log"])
-    async def dbadmin_commits(self, ctx):
-        panel = DbPanel(self.bot, ctx.author.id)
-        container = await commit_history_container()
-        panel.clear_items()
-        panel.add_item(container)
-        panel.add_item(ActionRow(section_select(panel)))
-        panel.add_item(ActionRow(undo_btn(panel)))
-        await ctx.respond(view=panel)
+    async def dbadmin_commits(self, ctx, commit_id: int = None):
+        if commit_id is None:
+            panel = DbPanel(self.bot, ctx.author.id)
+            container = await commit_history_container()
+            panel.clear_items()
+            panel.add_item(container)
+            panel.add_item(ActionRow(section_select(panel)))
+            panel.add_item(ActionRow(undo_btn(panel)))
+            return await ctx.respond(view=panel)
+        commit = await db.getDbCommit(commit_id)
+        if commit is None:
+            return await ctx.respond(f"{emojis.fail} Commit #{commit_id} not found.", ephemeral=True)
+        cont = createContainer(title=f"Commit #{commit['id']}", heading="##", color=None)
+        status = "~~undone~~" if commit["undone"] else "active"
+        cont.add_text(f"**Status:** {status}")
+        cont.add_text(f"**Action:** {commit['description']}")
+        if commit["timestamp"]:
+            cont.add_text(f"**When:** {discord.utils.format_dt(commit['timestamp'], 'R')} ({discord.utils.format_dt(commit['timestamp'], 'F')})")
+        if commit["author_id"]:
+            author = await resolve_user(self.bot, commit["author_id"])
+            author_text = f"{author.mention} (`{commit['author_id']}`)" if author else f"`{commit['author_id']}`"
+            cont.add_text(f"**By:** {author_text}")
+        if commit["target_id"]:
+            target = await resolve_user(self.bot, commit["target_id"])
+            target_text = f"{target.mention} (`{commit['target_id']}`)" if target else f"`{commit['target_id']}`"
+            cont.add_text(f"**Target:** {target_text}")
+        if commit["undo_type"]:
+            cont.add_text(f"**Undoable:** yes (`{commit['undo_type']}`)")
+        else:
+            cont.add_text(f"**Undoable:** no")
+        await ctx.respond(view=createView(cont))
+
+    @adminCheck()
+    @commands.command(name="hashcommits")
+    async def hashcommits(self, ctx):
+        await db.rehashCommits()
+        await ctx.respond(f"{emojis.success} Rehashed all commit IDs.")
 
 
 def setup(bot):

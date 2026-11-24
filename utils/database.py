@@ -1,4 +1,5 @@
 import os
+import random
 
 from sqlalchemy import (
     Column, String, Integer, Text, DateTime, UniqueConstraint, func, select, delete, text,
@@ -79,6 +80,8 @@ class DbCommit(Base):
     undone = Column(Integer, server_default="0", nullable=False)
     undo_type = Column(String(64))
     undo_data = Column(Text)
+    author_id = Column(String(25))
+    target_id = Column(String(25))
     timestamp = Column(DateTime, server_default=func.now())
 
 def normalizeSqliteUrl(url):
@@ -133,6 +136,10 @@ class Database:
                 await conn.execute(text("ALTER TABLE db_commits ADD COLUMN undo_type VARCHAR(64)"))
             if "undo_data" not in cols:
                 await conn.execute(text("ALTER TABLE db_commits ADD COLUMN undo_data TEXT"))
+            if "author_id" not in cols:
+                await conn.execute(text("ALTER TABLE db_commits ADD COLUMN author_id VARCHAR(25)"))
+            if "target_id" not in cols:
+                await conn.execute(text("ALTER TABLE db_commits ADD COLUMN target_id VARCHAR(25)"))
             await conn.execute(
                 sqlite_insert(BotStats.__table__).values(id=1).on_conflict_do_nothing(index_elements=["id"])
             )
@@ -378,23 +385,45 @@ class Database:
             await s.execute(stmt)
             await s.commit()
 
-    async def addDbCommit(self, description, undo_type=None, undo_data=None):
+    async def _genCommitId(self, s):
+        existing = {row[0] for row in (await s.execute(select(DbCommit.id))).all()}
+        for _ in range(10000):
+            candidate = random.randint(1, 9999)
+            if candidate not in existing:
+                return candidate
+        raise RuntimeError("no free commit ids under 9999")
+
+    async def addDbCommit(self, description, undo_type=None, undo_data=None, author_id=None, target_id=None):
         async with self.session() as s:
-            s.add(DbCommit(description=description, undo_type=undo_type, undo_data=undo_data))
+            cid = await self._genCommitId(s)
+            s.add(DbCommit(id=cid, description=description, undo_type=undo_type, undo_data=undo_data, author_id=str(author_id) if author_id else None, target_id=str(target_id) if target_id else None))
             await s.commit()
-            return (await s.execute(select(DbCommit).order_by(DbCommit.id.desc()).limit(1))).scalar_one()
+            return (await s.execute(select(DbCommit).where(DbCommit.id == cid))).scalar_one()
+
+    async def rehashCommits(self):
+        async with self.session() as s:
+            rows = (await s.execute(select(DbCommit).order_by(DbCommit.id))).scalars().all()
+            used = set()
+            for r in rows:
+                for _ in range(10000):
+                    candidate = random.randint(1, 9999)
+                    if candidate not in used:
+                        used.add(candidate)
+                        r.id = candidate
+                        break
+            await s.commit()
 
     async def getDbCommits(self, limit=20):
         async with self.session() as s:
             rows = (await s.execute(select(DbCommit).order_by(DbCommit.id.desc()).limit(limit))).scalars()
-            return [{"id": r.id, "description": r.description, "undone": bool(r.undone), "undo_type": r.undo_type, "undo_data": r.undo_data, "timestamp": r.timestamp} for r in rows]
+            return [{"id": r.id, "description": r.description, "undone": bool(r.undone), "undo_type": r.undo_type, "undo_data": r.undo_data, "author_id": r.author_id, "target_id": r.target_id, "timestamp": r.timestamp} for r in rows]
 
     async def getDbCommit(self, commit_id):
         async with self.session() as s:
             r = (await s.execute(select(DbCommit).where(DbCommit.id == commit_id))).scalar_one_or_none()
             if r is None:
                 return None
-            return {"id": r.id, "description": r.description, "undone": bool(r.undone), "undo_type": r.undo_type, "undo_data": r.undo_data, "timestamp": r.timestamp}
+            return {"id": r.id, "description": r.description, "undone": bool(r.undone), "undo_type": r.undo_type, "undo_data": r.undo_data, "author_id": r.author_id, "target_id": r.target_id, "timestamp": r.timestamp}
 
     async def markDbCommitUndone(self, commit_id):
         async with self.session() as s:
