@@ -490,11 +490,13 @@ def image_url(song):
     img = str(song.get("image_url") or "").strip()
     if not img or img.lower() in INVALID_VALS:
         return None
-    if img.startswith("/"):
-        img = f"{endpoints.jwa}{img}"
     if img.startswith(("http://", "https://")):
         return img
-    return None
+    if img.startswith("/"):
+        return f"{endpoints.jwa}{img}"
+    # covers picked from Files are stored as a bare storage path
+    # ("Compilation/4. Cover Art/...jpg"), served through the download endpoint
+    return endpoints.download + urllib.parse.quote(img, safe="")
 
 def song_title(song):
     return build_song_header(song)
