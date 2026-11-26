@@ -77,8 +77,9 @@ class endpoints:
     media_status = f"{media}/status/"
     now_playing = f"{media}/analytics/now-playing/discord/?discord_user_id="
 
-    covers = f"{wrld}/api/covers/"
-    covers_health = f"{wrld}/api/covers/health"
+    covers = f"{jwa}/juicewrld/files/browse/?dir=Cover%20Arts&search="
+    covers_community = f"{jwa}/juicewrld/files/browse/?channel=community&dir=Cover%20Arts&search="
+    covers_health = f"{jwa}/juicewrld/files/browse/?dir=Cover%20Arts&search=test"
     groupbuys = f"{wrld}/api/groupbuys"
 
 class colors:

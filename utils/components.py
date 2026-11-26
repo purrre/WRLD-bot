@@ -143,7 +143,7 @@ def createSongDropdown(songs, userId, placeholder, callbackFunc, formatType="son
     return dropdown
 
 class PaginatedView:
-    def __init__(self, items, itemsPerPage, userId, commandType, renderPageFunc, viewClass=None, extraContext=None, extraItemsFunc=None):
+    def __init__(self, items, itemsPerPage, userId, commandType, renderPageFunc, viewClass=None, extraContext=None, extraItemsFunc=None, middleButtonFunc=None):
         self.items = items
         self.itemsPerPage = itemsPerPage
         self.userId = userId
@@ -152,6 +152,7 @@ class PaginatedView:
         self.viewClass = viewClass or DesignerView
         self.extraContext = extraContext or {}
         self.extraItemsFunc = extraItemsFunc
+        self.middleButtonFunc = middleButtonFunc
         self.totalPages = max(1, (len(items) + itemsPerPage - 1) // itemsPerPage)
 
     def getPageItems(self, page):
@@ -165,6 +166,10 @@ class PaginatedView:
         prevBtn = Button(label="Previous", style=ButtonStyle.gray, custom_id=f"{self.commandType}_prev_{page}_{self.userId}", disabled=page <= 0)
         nextBtn = Button(label="Next", style=ButtonStyle.gray, custom_id=f"{self.commandType}_next_{page}_{self.userId}", disabled=page >= self.totalPages - 1)
         buttons = [prevBtn, nextBtn]
+        if self.middleButtonFunc:
+            midBtn = self.middleButtonFunc(self, page)
+            if midBtn:
+                buttons.insert(1, midBtn)
         if self.extraItemsFunc:
             for item in self.extraItemsFunc(self, page):
                 view.add_item(item)
@@ -173,6 +178,8 @@ class PaginatedView:
 
     def attachCallbacks(self, buttons, interactionOrCtx):
         for btn in buttons:
+            if "_prev_" not in btn.custom_id and "_next_" not in btn.custom_id:
+                continue
             async def btnCallback(inter, btn=btn):
                 if inter.user.id != self.userId:
                     return await inter.response.send_message(NOT_YOURS, ephemeral=True)
@@ -194,8 +201,8 @@ class PaginatedView:
         else:
             await interactionOrCtx.respond(view=view)
 
-def createSimplePagination(items, itemsPerPage, userId, commandType, renderPageFunc, viewClass=None, extraContext=None, extraItemsFunc=None):
-    return PaginatedView(items, itemsPerPage, userId, commandType, renderPageFunc, viewClass, extraContext, extraItemsFunc)
+def createSimplePagination(items, itemsPerPage, userId, commandType, renderPageFunc, viewClass=None, extraContext=None, extraItemsFunc=None, middleButtonFunc=None):
+    return PaginatedView(items, itemsPerPage, userId, commandType, renderPageFunc, viewClass, extraContext, extraItemsFunc, middleButtonFunc)
 
 def buildCommandGuide(info, prefix, aliases):
     guide = createContainer(title=info["title"], description=f"-# {info['description']}", heading="##")
