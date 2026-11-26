@@ -80,8 +80,6 @@ class CoversCog(commands.Cog):
         def middle_button(pag, page):
             submit_btn = Button(label="Submit Covers", style=ButtonStyle.success, custom_id=f"cover_submit_{page}_{pag.userId}")
             async def submit_cb(inter):
-                if inter.user.id != pag.userId:
-                    return await inter.response.send_message("not yours", ephemeral=True)
                 await inter.response.send_message("Cover submission is coming soon!", ephemeral=True)
             submit_btn.callback = submit_cb
             return submit_btn
